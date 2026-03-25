@@ -1,0 +1,211 @@
+import argparse
+from collections.abc import Callable
+from dataclasses import asdict
+from pathlib import Path
+
+import gymnasium as gym
+from stable_baselines3 import SAC
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
+import torch
+
+from dexterous_hand.config import PegSceneConfig, TactileTrainConfig
+import dexterous_hand.envs  # noqa: F401
+from dexterous_hand.tactile.feature_extractor import TactileFeatureExtractor
+
+
+def make_tactile_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
+    def _init() -> gym.Env:  # type: ignore[type-arg]
+        scene_config = PegSceneConfig(clearance=0.001)
+        env = gym.make("ShadowHandPegTactile-v0", scene_config=scene_config)
+        env.reset(seed=seed + rank)
+        return env
+
+    return _init
+
+
+def make_baseline_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
+    def _init() -> gym.Env:  # type: ignore[type-arg]
+        scene_config = PegSceneConfig(clearance=0.001)
+        env = gym.make("ShadowHandPeg-v0", scene_config=scene_config)
+        env.reset(seed=seed + rank)
+        return env
+
+    return _init
+
+
+def train_variant(
+    variant: str,
+    config: TactileTrainConfig,
+    run_dir: Path,
+    use_wandb: bool,
+) -> None:
+    """Train one variant — either with tactile sensing or without (baseline)."""
+    use_tactile = variant == "tactile"
+    variant_dir = run_dir / variant
+    variant_dir.mkdir(parents=True, exist_ok=True)
+
+    if use_wandb:
+        try:
+            import wandb
+
+            wandb.init(
+                project="dexterous-hand",
+                name=f"tactile-{variant}-{config.n_envs}env",
+                config={**asdict(config), "variant": variant},
+                reinit=True,
+            )
+        except Exception:
+            use_wandb = False
+
+    make_fn = make_tactile_env if use_tactile else make_baseline_env
+    print(f"\n[{variant.upper()}] Creating {config.n_envs} environments...")
+    env_fns = [make_fn(i, config.seed) for i in range(config.n_envs)]
+    vec_env = SubprocVecEnv(env_fns) if config.n_envs > 1 else DummyVecEnv(env_fns)
+
+    if config.norm_obs or config.norm_reward:
+        vec_env = VecNormalize(  # type: ignore[assignment]
+            vec_env,
+            norm_obs=config.norm_obs,
+            norm_reward=config.norm_reward,
+            clip_obs=10.0,
+        )
+
+    eval_fns = [make_fn(0, config.seed + 10000)]
+    eval_env = DummyVecEnv(eval_fns)
+    if config.norm_obs or config.norm_reward:
+        eval_env = VecNormalize(  # type: ignore[assignment]
+            eval_env,
+            norm_obs=config.norm_obs,
+            norm_reward=False,
+            clip_obs=10.0,
+            training=False,
+        )
+
+    activation_fn = {"elu": torch.nn.ELU, "relu": torch.nn.ReLU, "tanh": torch.nn.Tanh}[
+        config.activation
+    ]
+
+    policy_kwargs: dict = {
+        "net_arch": dict(pi=config.net_arch.copy(), qf=config.net_arch.copy()),
+        "activation_fn": activation_fn,
+    }
+    if use_tactile:
+        policy_kwargs["features_extractor_class"] = TactileFeatureExtractor
+        policy_kwargs["features_extractor_kwargs"] = {
+            "proprio_dim": 125,
+            "tactile_dim": 240,
+        }
+
+    print(f"[{variant.upper()}] Initializing SAC...")
+    model = SAC(
+        "MlpPolicy",
+        vec_env,
+        learning_rate=config.learning_rate,
+        batch_size=config.batch_size,
+        buffer_size=config.buffer_size,
+        learning_starts=config.learning_starts,
+        tau=config.tau,
+        gamma=config.gamma,
+        train_freq=config.train_freq,
+        gradient_steps=config.gradient_steps,
+        ent_coef=config.ent_coef,
+        policy_kwargs=policy_kwargs,
+        verbose=1,
+        seed=config.seed,
+        device="auto",
+    )
+
+    callbacks = [
+        EvalCallback(
+            eval_env,
+            best_model_save_path=str(variant_dir / "best"),
+            eval_freq=max(50_000 // config.n_envs, 1),
+            n_eval_episodes=20,
+            deterministic=True,
+        ),
+        CheckpointCallback(
+            save_freq=max(500_000 // config.n_envs, 1),
+            save_path=str(variant_dir / "checkpoints"),
+        ),
+    ]
+
+    if use_wandb:
+        try:
+            from wandb.integration.sb3 import WandbCallback
+
+            callbacks.append(
+                WandbCallback(
+                    model_save_path=str(variant_dir),
+                    model_save_freq=max(100_000 // config.n_envs, 1),
+                    verbose=1,
+                )
+            )
+        except ImportError:
+            pass
+
+    print(f"[{variant.upper()}] Training for {config.total_timesteps:,} timesteps...")
+    model.learn(
+        total_timesteps=config.total_timesteps,
+        callback=callbacks,
+        progress_bar=True,
+    )
+
+    model.save(str(variant_dir / "final_model"))
+    if isinstance(vec_env, VecNormalize):
+        vec_env.save(str(variant_dir / "vec_normalize.pkl"))
+
+    print(f"[{variant.upper()}] Training complete. Model saved to {variant_dir}")
+    if use_wandb:
+        try:
+            import wandb
+
+            wandb.finish()
+        except Exception:
+            pass
+
+    vec_env.close()
+    eval_env.close()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Tactile ablation study")
+    parser.add_argument("--n-envs", type=int, default=4)
+    parser.add_argument("--total-timesteps", type=int, default=100_000_000)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--variant",
+        choices=["both", "tactile", "baseline"],
+        default="both",
+        help="Which variant to train (default: both)",
+    )
+    args = parser.parse_args()
+
+    config = TactileTrainConfig(
+        n_envs=args.n_envs,
+        total_timesteps=args.total_timesteps,
+        seed=args.seed,
+    )
+
+    try:
+        import wandb  # noqa: F401
+
+        use_wandb = True
+    except Exception:
+        use_wandb = False
+        print("WandB not available, continuing without it.")
+
+    run_dir = Path("runs") / f"tactile_ablation_{config.n_envs}env_{config.seed}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    variants = ["tactile", "baseline"] if args.variant == "both" else [args.variant]
+    for variant in variants:
+        train_variant(variant, config, run_dir, use_wandb)
+
+    print("\nAblation study complete!")
+    if len(variants) == 2:
+        print(f"Results in {run_dir}/tactile/ and {run_dir}/baseline/")
+
+
+if __name__ == "__main__":
+    main()
