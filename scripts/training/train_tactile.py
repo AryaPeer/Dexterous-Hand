@@ -18,6 +18,7 @@ from dexterous_hand.tactile.feature_extractor import TactileFeatureExtractor
 
 def make_tactile_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
+        import dexterous_hand.envs  # noqa: F401 — register in subprocess
         scene_config = PegSceneConfig(clearance=0.001)
         env = gym.make("ShadowHandPegTactile-v0", scene_config=scene_config)
         env.reset(seed=seed + rank)
@@ -28,6 +29,7 @@ def make_tactile_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ig
 
 def make_baseline_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
+        import dexterous_hand.envs  # noqa: F401 — register in subprocess
         scene_config = PegSceneConfig(clearance=0.001)
         env = gym.make("ShadowHandPeg-v0", scene_config=scene_config)
         env.reset(seed=seed + rank)

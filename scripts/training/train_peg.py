@@ -18,6 +18,7 @@ import dexterous_hand.envs  # noqa: F401
 
 def make_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
+        import dexterous_hand.envs  # noqa: F401 — register in subprocess
         env = gym.make("ShadowHandPeg-v0")
         env.reset(seed=seed + rank)
         return env
