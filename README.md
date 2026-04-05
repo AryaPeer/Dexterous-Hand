@@ -27,16 +27,16 @@ All training goes through `main.py`. Each task has its own command and default h
 
 ```bash
 # Grasping with PPO
-uv run python main.py train --n-envs 4 --total-timesteps 50000000
+uv run python main.py train --n-envs 256 --total-timesteps 50000000
 
 # In-hand reorientation with PPO
-uv run python main.py train-reorient --n-envs 4 --total-timesteps 200000000
+uv run python main.py train-reorient --n-envs 256 --total-timesteps 200000000
 
 # Peg-in-hole with SAC
-uv run python main.py train-peg --n-envs 4 --total-timesteps 100000000
+uv run python main.py train-peg --n-envs 256 --total-timesteps 100000000
 
 # Tactile version of peg-in-hole
-uv run python main.py train-tactile --n-envs 4 --variant both
+uv run python main.py train-tactile --n-envs 256 --variant both
 ```
 
 ## Evaluation
