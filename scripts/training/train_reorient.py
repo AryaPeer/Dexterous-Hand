@@ -24,6 +24,15 @@ CURRICULUM_STAGES: list[tuple[int, float]] = [
 ]
 
 
+class VecNormSyncEvalCallback(EvalCallback):
+    """EvalCallback that keeps eval obs normalization in sync with training env."""
+
+    def _on_step(self) -> bool:
+        if isinstance(self.training_env, VecNormalize) and isinstance(self.eval_env, VecNormalize):
+            self.eval_env.obs_rms = self.training_env.obs_rms
+        return super()._on_step()
+
+
 def make_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
         import dexterous_hand.envs  # noqa: F401 — register in subprocess
@@ -103,7 +112,7 @@ def train(config: ReorientTrainConfig) -> None:
     # callbacks
     callbacks = [
         ReorientCurriculumCallback(stages=CURRICULUM_STAGES, verbose=1),
-        EvalCallback(
+        VecNormSyncEvalCallback(
             eval_env,
             best_model_save_path=str(run_dir / "best"),
             eval_freq=max(50_000 // config.n_envs, 1),

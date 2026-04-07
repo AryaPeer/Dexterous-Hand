@@ -22,24 +22,31 @@ class PegRewardCalculator:
         self.drop_penalty_value = config.drop_penalty
         self.complete_bonus = config.complete_bonus
         self.force_threshold = config.force_threshold
+        self.idle_stage0_penalty = config.idle_stage0_penalty
+        self.min_contacts_for_align = config.min_contacts_for_align
         self.table_height = table_height
         self._was_grasped = False
         self._insertion_hold_steps = 0
+        self._initial_peg_height = table_height
 
-    def reset(self) -> None:
+    def reset(self, initial_peg_height: float | None = None) -> None:
         """Reset for a new episode."""
 
         self._was_grasped = False
         self._insertion_hold_steps = 0
+        if initial_peg_height is None:
+            self._initial_peg_height = self.table_height
+        else:
+            self._initial_peg_height = float(initial_peg_height)
 
     def compute(
         self,
         stage: int,
-        fingertip_positions: np.ndarray,  # (5, 3)
-        peg_position: np.ndarray,  # (3,)
-        peg_axis: np.ndarray,  # (3,) — peg's local Z in world frame
-        hole_position: np.ndarray,  # (3,)
-        hole_axis: np.ndarray,  # (3,) — hole's local Z in world frame
+        finger_positions: np.ndarray,
+        peg_position: np.ndarray,
+        peg_axis: np.ndarray,
+        hole_position: np.ndarray,
+        hole_axis: np.ndarray,
         insertion_depth: float,
         contact_force_magnitude: float,
         num_fingers_in_contact: int,
@@ -51,8 +58,8 @@ class PegRewardCalculator:
 
         @param stage: task stage (0=reach, 1=grasp, 2=align, 3=insert)
         @type stage: int
-        @param fingertip_positions: (5, 3) fingertip positions
-        @type fingertip_positions: np.ndarray
+        @param finger_positions: (5, 3) per-finger representative positions
+        @type finger_positions: np.ndarray
         @param peg_position: (3,) peg center
         @type peg_position: np.ndarray
         @param peg_axis: (3,) peg direction (world frame)
@@ -82,32 +89,35 @@ class PegRewardCalculator:
         if num_fingers_in_contact >= 3:
             self._was_grasped = True
 
-        # reach — only active in stage 0
         if stage == 0:
-            dists = np.linalg.norm(fingertip_positions - peg_position, axis=1)
+            dists = np.linalg.norm(finger_positions - peg_position, axis=1)
             reach = float(np.exp(-10.0 * np.mean(dists)))
         else:
             reach = 0.0
         info["reward/reach"] = reach
 
-        # grasp
         grasp = min(num_fingers_in_contact / 3.0, 1.0)
         info["reward/grasp"] = grasp
 
-        # lift
-        lift = float(np.clip(peg_height - self.table_height, 0.0, 0.1) / 0.1)
+        lift_height = max(peg_height - self._initial_peg_height, 0.0)
+        lift = float(np.clip(lift_height, 0.0, 0.1) / 0.1)
         info["reward/lift"] = lift
 
-        # alignment — dot product scaled by lateral distance
         lateral_dist = float(np.linalg.norm(peg_position[:2] - hole_position[:2]))
-        align = float(np.dot(peg_axis, hole_axis)) * float(np.exp(-20.0 * lateral_dist))
-        info["reward/align"] = align
+        raw_align = float(np.dot(peg_axis, hole_axis)) * float(np.exp(-20.0 * lateral_dist))
 
-        # insertion depth
-        depth_reward = 10.0 * (insertion_depth / self.peg_length) if lateral_dist < 0.005 else 0.0
+        if num_fingers_in_contact < self.min_contacts_for_align or stage < 2:
+            align = 0.0
+            depth_reward = 0.0
+        elif stage == 2:
+            align = max(raw_align, 0.0)
+            depth_reward = 0.0
+        else:
+            align = max(raw_align, 0.0)
+            depth_reward = 10.0 * (insertion_depth / self.peg_length) if lateral_dist < 0.005 else 0.0
+        info["reward/align"] = align
         info["reward/depth"] = depth_reward
 
-        # completion — big bonus after holding insertion for 10 steps
         insertion_fraction = insertion_depth / self.peg_length
 
         if insertion_fraction > 0.9:
@@ -118,21 +128,23 @@ class PegRewardCalculator:
             complete = 0.0
         info["reward/complete"] = complete
 
-        # force penalty — penalize excessive wall contact
         force_excess = max(0.0, contact_force_magnitude - self.force_threshold)
         force_penalty = -0.01 * force_excess**2
         info["reward/force_penalty"] = force_penalty
 
-        # drop
-        dropped = self._was_grasped and peg_height < self.table_height - 0.02
+        dropped = self._was_grasped and peg_height < self._initial_peg_height - 0.02
         drop = self.drop_penalty_value if dropped else 0.0
         info["reward/drop"] = drop
 
-        # smoothness
         smoothness = -0.002 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/smoothness"] = smoothness
 
-        # weighted sum
+        action_magnitude_penalty = -0.002 * float(np.sum(actions**2))
+        info["reward/action_magnitude_penalty"] = action_magnitude_penalty
+
+        idle_stage0_penalty = self.idle_stage0_penalty if (stage == 0 and num_fingers_in_contact == 0) else 0.0
+        info["reward/idle_stage0_penalty"] = idle_stage0_penalty
+
         total = (
             self.weights.reach * reach
             + self.weights.grasp * grasp
@@ -143,6 +155,8 @@ class PegRewardCalculator:
             + self.weights.force * force_penalty
             + self.weights.drop * drop
             + self.weights.smoothness * smoothness
+            + action_magnitude_penalty
+            + idle_stage0_penalty
         )
 
         info["reward/total"] = total

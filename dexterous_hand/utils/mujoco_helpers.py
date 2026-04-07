@@ -57,6 +57,52 @@ def get_fingertip_positions(
     return data.site_xpos[fingertip_site_ids].copy()
 
 
+def get_finger_contacts(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    finger_geom_ids_per_finger: list[set[int]],
+    object_geom_id: int,
+) -> tuple[int, set[int]]:
+    """Which fingers are touching the object (any geom on each finger link chain)."""
+
+    contact_finger_indices: set[int] = set()
+    geom_to_finger: dict[int, int] = {}
+
+    for finger_idx, geom_ids in enumerate(finger_geom_ids_per_finger):
+        for gid in geom_ids:
+            geom_to_finger[gid] = finger_idx
+
+    for i in range(data.ncon):
+        contact = data.contact[i]
+        g1, g2 = contact.geom1, contact.geom2
+
+        if g1 == object_geom_id and g2 in geom_to_finger:
+            contact_finger_indices.add(geom_to_finger[g2])
+        elif g2 == object_geom_id and g1 in geom_to_finger:
+            contact_finger_indices.add(geom_to_finger[g1])
+
+    return len(contact_finger_indices), contact_finger_indices
+
+
+def get_finger_positions(
+    data: mujoco.MjData,
+    finger_geom_ids_per_finger: list[set[int]],
+) -> np.ndarray:
+    """Per-finger representative positions (mean geom center), shape (5, 3)."""
+
+    finger_positions: list[np.ndarray] = []
+
+    for geom_ids in finger_geom_ids_per_finger:
+        if not geom_ids:
+            finger_positions.append(np.zeros(3, dtype=np.float64))
+            continue
+
+        geom_pos = data.geom_xpos[list(geom_ids)]
+        finger_positions.append(np.mean(geom_pos, axis=0))
+
+    return np.asarray(finger_positions, dtype=np.float64)
+
+
 def get_object_state(
     data: mujoco.MjData,
     object_body_id: int,

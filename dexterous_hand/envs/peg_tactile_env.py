@@ -6,7 +6,7 @@ import numpy as np
 from dexterous_hand.config import PegRewardConfig, PegSceneConfig, TactileConfig
 from dexterous_hand.envs.peg_env import ShadowHandPegEnv
 from dexterous_hand.tactile.sensor import TactileSensor
-from dexterous_hand.utils.mujoco_helpers import get_object_state
+from dexterous_hand.utils.mujoco_helpers import get_finger_contacts, get_object_state
 
 
 class ShadowHandPegTactileEnv(ShadowHandPegEnv):
@@ -86,7 +86,7 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
         return obs, info
 
     def _compute_step_extras(self) -> tuple[float, dict[str, float]]:
-        """Tactile rewards — grasp stability bonus and slip penalty."""
+        """Tactile rewards - grasp stability bonus and slip penalty."""
 
         sensor = self._ensure_tactile()
         current, previous, change = sensor.get_readings(self.model, self.data)
@@ -95,7 +95,13 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
         extra_reward = 0.0
         info: dict[str, float] = {}
 
-        # grasp stability: balanced force across fingers, all fingers active
+        num_contacts, _ = get_finger_contacts(
+            self.model,
+            self.data,
+            self.nm.finger_geom_ids_per_finger,
+            self.nm.peg_geom_id,
+        )
+
         per_finger = current.reshape(5, 16)
         finger_forces = per_finger.sum(axis=1)
         thumb_force = finger_forces[4]
@@ -106,10 +112,11 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
         all_active = float(np.min(finger_forces) > 0.1)
         grasp_stability = force_balance * all_active
 
-        grasp_stability_reward = 0.1 * grasp_stability
+        stage_gate = 1.0 if self._stage >= 1 else 0.0
+        contact_factor = min(num_contacts / 3.0, 1.0)
+        grasp_stability_reward = 0.05 * grasp_stability * stage_gate * contact_factor
         extra_reward += grasp_stability_reward
 
-        # slip detection: sudden tactile drop while peg is moving
         nm = self.nm
         _, _, peg_linvel, _ = get_object_state(
             self.data, nm.peg_body_id, nm.peg_qpos_start, nm.peg_qvel_start
@@ -117,15 +124,20 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
 
         object_speed = float(np.linalg.norm(peg_linvel))
         tactile_drop = float(np.mean(change)) < -0.5
-        slip_detected = object_speed > 0.05 and tactile_drop
+        slip_detected = num_contacts >= 2 and object_speed > 0.05 and tactile_drop
 
         slip_penalty = -2.0 if slip_detected else 0.0
         extra_reward += slip_penalty
 
+        tactile_idle_penalty = -0.05 if (self._stage >= 1 and num_contacts == 0) else 0.0
+        extra_reward += tactile_idle_penalty
+
         # log
         info["reward/grasp_stability"] = grasp_stability_reward
         info["reward/slip_penalty"] = slip_penalty
+        info["reward/tactile_idle_penalty"] = tactile_idle_penalty
         info["metrics/slip_detected"] = float(slip_detected)
+        info["metrics/tactile_num_contacts"] = float(num_contacts)
         info["metrics/total_tactile_force"] = float(np.sum(current))
         info["metrics/grasp_stability"] = grasp_stability
 
@@ -147,9 +159,9 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
 
         return np.concatenate(
             [
-                base_obs,           # 125
-                tactile_current,    # 80
-                tactile_previous,   # 80
-                tactile_change,     # 80
+                base_obs,
+                tactile_current,
+                tactile_previous,
+                tactile_change,
             ]
         )

@@ -9,12 +9,14 @@ from dexterous_hand.config import ReorientRewardConfig, ReorientSceneConfig
 from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
 from dexterous_hand.rewards.reorient_reward import ReorientRewardCalculator
 from dexterous_hand.utils.mujoco_helpers import (
+    get_finger_contacts,
+    get_finger_positions,
     get_cube_face_contacts,
-    get_fingertip_positions,
     get_object_state,
     get_palm_position,
 )
 from dexterous_hand.utils.quaternion import (
+    quat_angular_distance,
     quat_conjugate,
     quat_multiply,
     random_quaternion_within_angle,
@@ -71,12 +73,14 @@ class ShadowHandReorientEnv(gym.Env):
 
         # state tracking
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
+        self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._target_quat = np.array([1.0, 0.0, 0.0, 0.0])
         self._max_target_angle = 0.5236  # 30 deg, curriculum ramps this up
         self._targets_reached = 0
         self._init_qpos = self.data.qpos.copy()
         self._init_qvel = self.data.qvel.copy()
         self._palm_z: float = 0.0
+        self._grasp_site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site")
         self.current_timestep: int = 0
 
         # rendering
@@ -114,21 +118,23 @@ class ShadowHandReorientEnv(gym.Env):
         palm_pos = get_palm_position(self.data, self.nm.palm_body_id)
         self._palm_z = float(palm_pos[2])
 
-        # place cube just above palm with slight random rotation
         s = self.nm.cube_qpos_start
-        self.data.qpos[s : s + 3] = palm_pos + [0.0, 0.0, 0.03]
+        cube_pos = self.data.site_xpos[self._grasp_site_id].copy()
+        cube_pos += self.np_random.uniform(-0.004, 0.004, size=3)
+        self.data.qpos[s : s + 3] = cube_pos
         init_quat = random_quaternion_within_angle(self.np_random, 0.1)
         self.data.qpos[s + 3 : s + 7] = init_quat
 
         mujoco.mj_forward(self.model, self.data)
 
         # new target + reset reward tracking
-        self._target_quat = random_quaternion_within_angle(self.np_random, self._max_target_angle)
+        self._target_quat = self._sample_target_quat(cube_quat=init_quat)
         self._targets_reached = 0
         init_cube_pos = self.data.xpos[self.nm.cube_body_id].copy()
         self.reward_calculator.reset(initial_cube_pos=init_cube_pos)
 
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
+        self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
 
         obs = self._get_obs()
         info = {"targets_reached": 0}
@@ -144,8 +150,12 @@ class ShadowHandReorientEnv(gym.Env):
         @rtype: tuple[np.ndarray, float, bool, bool, dict[str, Any]]
         """
 
-        # rescale actions to actuator ranges
         action = np.clip(action, -1.0, 1.0)
+        alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
+        if alpha > 0.0:
+            action = (1.0 - alpha) * self._smoothed_actions + alpha * action
+        self._smoothed_actions = action.astype(np.float64).copy()
+
         low = self.nm.ctrl_ranges[:, 0]
         high = self.nm.ctrl_ranges[:, 1]
         ctrl = low + (action + 1.0) / 2.0 * (high - low)
@@ -154,7 +164,7 @@ class ShadowHandReorientEnv(gym.Env):
         mujoco.mj_step(self.model, self.data, nstep=self.scene_config.frame_skip)
 
         # read state
-        fingertip_pos = get_fingertip_positions(self.data, self.nm.fingertip_site_ids)
+        fingertip_pos = get_finger_positions(self.data, self.nm.finger_geom_ids_per_finger)
 
         cube_pos, cube_quat, cube_linvel, cube_angvel = get_object_state(
             self.data,
@@ -163,16 +173,23 @@ class ShadowHandReorientEnv(gym.Env):
             self.nm.cube_qvel_start,
         )
 
+        num_contacts, _ = get_finger_contacts(
+            self.model,
+            self.data,
+            self.nm.finger_geom_ids_per_finger,
+            self.nm.cube_geom_id,
+        )
+
         dropped = cube_pos[2] < self._palm_z - self.reward_config.drop_height_offset
 
-        # reward
         reward, reward_info, target_reached = self.reward_calculator.compute(
             cube_quat=cube_quat,
             target_quat=self._target_quat,
             cube_pos=cube_pos,
             cube_linvel=cube_linvel,
             cube_angvel=cube_angvel,
-            fingertip_positions=fingertip_pos,
+            finger_positions=fingertip_pos,
+            num_fingers_in_contact=num_contacts,
             actions=action.astype(np.float64),
             previous_actions=self._previous_actions,
             dropped=dropped,
@@ -183,9 +200,7 @@ class ShadowHandReorientEnv(gym.Env):
         # if target reached, sample a new one
         if target_reached:
             self._targets_reached += 1
-            self._target_quat = random_quaternion_within_angle(
-                self.np_random, self._max_target_angle
-            )
+            self._target_quat = self._sample_target_quat(cube_quat=cube_quat)
             self.reward_calculator.reset()
 
         terminated = dropped
@@ -195,8 +210,29 @@ class ShadowHandReorientEnv(gym.Env):
             "targets_reached": self._targets_reached,
             **reward_info,
         }
+        info["reward/total"] = float(reward)
 
         return obs, float(reward), terminated, False, info
+
+    def _sample_target_quat(self, cube_quat: np.ndarray) -> np.ndarray:
+        """Sample a target that is not trivially close to current cube orientation."""
+
+        min_angle = min(self.scene_config.target_min_angle, 0.8 * self._max_target_angle)
+        best_quat: np.ndarray | None = None
+        best_dist = -1.0
+
+        for _ in range(32):
+            candidate = random_quaternion_within_angle(self.np_random, self._max_target_angle)
+            dist = float(quat_angular_distance(cube_quat, candidate))
+            if dist >= min_angle:
+                return candidate
+            if dist > best_dist:
+                best_dist = dist
+                best_quat = candidate
+
+        if best_quat is not None:
+            return best_quat
+        return random_quaternion_within_angle(self.np_random, self._max_target_angle)
 
     def _get_obs(self) -> np.ndarray:
         """Flat obs (115,) — joints, cube state, target/error quats, fingertips, actions."""
@@ -210,7 +246,7 @@ class ShadowHandReorientEnv(gym.Env):
             self.data, nm.cube_body_id, nm.cube_qpos_start, nm.cube_qvel_start
         )
 
-        fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
+        fingertip_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger)
         fingertip_cube_dists = np.linalg.norm(fingertip_pos - cube_pos, axis=1)
 
         err_quat = quat_multiply(quat_conjugate(cube_quat), self._target_quat)

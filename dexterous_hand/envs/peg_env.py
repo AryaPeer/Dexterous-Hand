@@ -7,13 +7,14 @@ import numpy as np
 
 from dexterous_hand.config import PegRewardConfig, PegSceneConfig
 from dexterous_hand.envs.peg_scene_builder import build_peg_scene
+from dexterous_hand.envs.scene_builder import TABLE_TASK_FLEXION_BIAS
 from dexterous_hand.rewards.peg_reward import PegRewardCalculator
 from dexterous_hand.utils.mujoco_helpers import (
     get_body_axis,
     get_contact_forces,
     get_contact_forces_on_body,
-    get_fingertip_contacts,
-    get_fingertip_positions,
+    get_finger_contacts,
+    get_finger_positions,
     get_insertion_depth,
     get_object_state,
     get_palm_position,
@@ -68,11 +69,21 @@ class ShadowHandPegEnv(gym.Env):
 
         # state tracking
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
+        self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._stage = 0
         self._peg_pre_grasped = False
         self._clearance = self.scene_config.clearance
         self._init_qpos = self.data.qpos.copy()
         self._wall_geom_set: set[int] = set(self.nm.hole_wall_geom_ids)
+        self._initial_peg_height = self.scene_config.table_height
+
+        for jname, bias in TABLE_TASK_FLEXION_BIAS.items():
+            jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, jname)
+            if jid >= 0:
+                adr = self.model.jnt_qposadr[jid]
+                self._init_qpos[adr] = float(np.clip(
+                    bias, self.model.jnt_range[jid][0], self.model.jnt_range[jid][1],
+                ))
 
         # rendering
         self._renderer: mujoco.Renderer | None = None
@@ -110,17 +121,22 @@ class ShadowHandPegEnv(gym.Env):
         hand_qpos = self._init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
         noise = self.np_random.uniform(-0.01, 0.01, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
+        mujoco.mj_forward(self.model, self.data)
 
         # place peg — either in hand or on table
         s = self.nm.peg_qpos_start
 
         if self._peg_pre_grasped:
-            palm_pos = np.array([0.0, 0.0, self.scene_config.mount_height - 0.05])
-            self.data.qpos[s : s + 3] = palm_pos
+            palm_pos = get_palm_position(self.data, self.nm.palm_body_id)
+            self.data.qpos[s : s + 3] = palm_pos + np.array([0.0, 0.0, -0.03], dtype=np.float64)
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
         else:
-            peg_x = self.np_random.uniform(-0.05, 0.05)
-            peg_y = self.np_random.uniform(-0.05, 0.05)
+            peg_x, peg_y = 0.0, 0.0
+            for _ in range(32):
+                peg_x = float(self.np_random.uniform(-0.07, 0.07))
+                peg_y = float(self.np_random.uniform(-0.07, 0.07))
+                if float(np.hypot(peg_x, peg_y)) >= self.scene_config.spawn_min_radius:
+                    break
             peg_z = self.scene_config.table_height + self.reward_config.peg_half_length + 0.001
             self.data.qpos[s : s + 3] = [peg_x, peg_y, peg_z]
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
@@ -129,8 +145,11 @@ class ShadowHandPegEnv(gym.Env):
         mujoco.mj_forward(self.model, self.data)
 
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
+        self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._stage = 0
-        self.reward_calculator.reset()
+        initial_peg_height = float(self.data.xpos[self.nm.peg_body_id][2])
+        self._initial_peg_height = initial_peg_height
+        self.reward_calculator.reset(initial_peg_height=initial_peg_height)
 
         obs = self._get_obs()
         info = {"stage": self._stage}
@@ -146,8 +165,12 @@ class ShadowHandPegEnv(gym.Env):
         @rtype: tuple[np.ndarray, float, bool, bool, dict[str, Any]]
         """
 
-        # rescale actions to actuator ranges
         action = np.clip(action, -1.0, 1.0)
+        alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
+        if alpha > 0.0:
+            action = (1.0 - alpha) * self._smoothed_actions + alpha * action
+        self._smoothed_actions = action.astype(np.float64).copy()
+
         low = self.nm.ctrl_ranges[:, 0]
         high = self.nm.ctrl_ranges[:, 1]
         ctrl = low + (action + 1.0) / 2.0 * (high - low)
@@ -155,10 +178,9 @@ class ShadowHandPegEnv(gym.Env):
 
         mujoco.mj_step(self.model, self.data, nstep=self.scene_config.frame_skip)
 
-        # read state
         nm = self.nm
 
-        fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
+        finger_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger)
 
         peg_pos, peg_quat, peg_linvel, peg_angvel = get_object_state(
             self.data,
@@ -167,8 +189,11 @@ class ShadowHandPegEnv(gym.Env):
             nm.peg_qvel_start,
         )
 
-        num_contacts, _ = get_fingertip_contacts(
-            self.model, self.data, nm.fingertip_geom_ids, nm.peg_geom_id
+        num_contacts, _ = get_finger_contacts(
+            self.model,
+            self.data,
+            nm.finger_geom_ids_per_finger,
+            nm.peg_geom_id,
         )
 
         palm_pos = get_palm_position(self.data, nm.palm_body_id)
@@ -195,7 +220,7 @@ class ShadowHandPegEnv(gym.Env):
 
         # determine task stage
         fingers_on_peg = num_contacts >= 3
-        peg_lifted = peg_pos[2] > self.scene_config.table_height + 0.02
+        peg_lifted = peg_pos[2] > self._initial_peg_height + 0.02
         peg_near_hole = float(np.linalg.norm(peg_pos[:2] - hole_pos[:2])) < 0.03
         peg_aligned = abs(float(np.dot(peg_axis, hole_axis))) > 0.95
 
@@ -213,7 +238,7 @@ class ShadowHandPegEnv(gym.Env):
 
         reward, reward_info = self.reward_calculator.compute(
             stage=self._stage,
-            fingertip_positions=fingertip_pos,
+            finger_positions=finger_pos,
             peg_position=peg_pos,
             peg_axis=peg_axis,
             hole_position=hole_pos,
@@ -236,7 +261,7 @@ class ShadowHandPegEnv(gym.Env):
         hole_quat = np.zeros(4)
         mujoco.mju_mat2Quat(hole_quat, self.data.xmat[nm.hole_body_id].flatten())
 
-        fingertip_peg_dist = np.linalg.norm(fingertip_pos - peg_pos, axis=1)
+        fingertip_peg_dist = np.linalg.norm(finger_pos - peg_pos, axis=1)
         rel_peg_to_palm = peg_pos - palm_pos
 
         self._cached_obs = {
@@ -248,7 +273,7 @@ class ShadowHandPegEnv(gym.Env):
             "hole_quat": hole_quat,
             "rel_pos": rel_pos,
             "ang_error": ang_error,
-            "fingertip_pos": fingertip_pos,
+            "fingertip_pos": finger_pos,
             "fingertip_peg_dist": fingertip_peg_dist,
             "rel_peg_to_palm": rel_peg_to_palm,
             "insertion_depth": insertion_depth,
@@ -275,6 +300,7 @@ class ShadowHandPegEnv(gym.Env):
             **extra_info,
             **reward_info,
         }
+        info["reward/total"] = float(reward)
 
         return obs, float(reward), terminated, False, info
 
@@ -321,7 +347,7 @@ class ShadowHandPegEnv(gym.Env):
 
             rel_pos, ang_error = get_peg_hole_relative(self.data, nm.peg_body_id, nm.hole_body_id)
 
-            fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
+            fingertip_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger)
             fingertip_peg_dist = np.linalg.norm(fingertip_pos - peg_pos, axis=1)
 
             palm_pos = get_palm_position(self.data, nm.palm_body_id)

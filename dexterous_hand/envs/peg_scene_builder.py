@@ -7,6 +7,7 @@ import numpy as np
 from dexterous_hand.config import PegSceneConfig
 from dexterous_hand.envs.scene_builder import (
     ASSETS_DIR,
+    FINGER_BODY_PREFIXES,
     FINGERTIP_BODIES,
     FINGERTIP_OFFSETS,
     FINGERTIP_SITE_NAMES,
@@ -30,6 +31,7 @@ class PegNameMap:
     palm_body_id: int
     fingertip_site_ids: list[int]
     fingertip_geom_ids: set[int]
+    finger_geom_ids_per_finger: list[set[int]]
     table_geom_id: int
 
     peg_body_id: int
@@ -100,7 +102,7 @@ def build_peg_scene(
 
     mount = spec.worldbody.add_body(
         name="hand_mount",
-        pos=[0.0, 0.0, config.mount_height],
+        pos=[config.mount_x, config.mount_y, config.mount_height],
         euler=[math.pi, 0.0, 0.0],
     )
     mount_site = mount.add_site(name="hand_attach", pos=[0.0, 0.0, 0.0])
@@ -108,6 +110,7 @@ def build_peg_scene(
     hand_xml = str(ASSETS_DIR / "right_hand.xml")
     child_spec = mujoco.MjSpec.from_file(hand_xml)
     spec.attach(child_spec, site=mount_site, prefix="")
+    spec.body("rh_forearm").quat = [0.0, 1.0, 0.0, 0.0]
 
     for body_name, site_name in zip(FINGERTIP_BODIES, FINGERTIP_SITE_NAMES, strict=True):
         body = spec.body(body_name)
@@ -259,6 +262,18 @@ def _resolve_peg_names(model: mujoco.MjModel, config: PegSceneConfig) -> PegName
         if model.geom_bodyid[gid] in fingertip_body_ids:
             fingertip_geom_ids.add(gid)
 
+    finger_geom_ids_per_finger: list[set[int]] = [set() for _ in FINGER_BODY_PREFIXES]
+    for gid in range(model.ngeom):
+        body_id = model.geom_bodyid[gid]
+        body_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+        if not body_name:
+            continue
+
+        for finger_idx, prefix in enumerate(FINGER_BODY_PREFIXES):
+            if body_name.startswith(prefix):
+                finger_geom_ids_per_finger[finger_idx].add(gid)
+                break
+
     # peg + hole
     table_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "table_geom")
     peg_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "peg")
@@ -283,6 +298,7 @@ def _resolve_peg_names(model: mujoco.MjModel, config: PegSceneConfig) -> PegName
         palm_body_id=palm_body_id,
         fingertip_site_ids=fingertip_site_ids,
         fingertip_geom_ids=fingertip_geom_ids,
+        finger_geom_ids_per_finger=finger_geom_ids_per_finger,
         table_geom_id=table_geom_id,
         peg_body_id=peg_body_id,
         peg_geom_id=peg_geom_id,

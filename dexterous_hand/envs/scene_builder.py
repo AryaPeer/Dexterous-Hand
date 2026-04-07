@@ -36,6 +36,14 @@ FINGERTIP_OFFSETS: dict[str, list[float]] = {
     "rh_thdistal": [0.0, 0.0, 0.032],
 }
 
+FINGER_BODY_PREFIXES = ["rh_ff", "rh_mf", "rh_rf", "rh_lf", "rh_th"]
+
+TABLE_TASK_FLEXION_BIAS: dict[str, float] = {
+    "rh_FFJ3": 0.8, "rh_MFJ3": 0.8, "rh_RFJ3": 0.8, "rh_LFJ3": 0.8,
+    "rh_FFJ2": 0.6, "rh_MFJ2": 0.6, "rh_RFJ2": 0.6, "rh_LFJ2": 0.6,
+    "rh_THJ4": 0.8, "rh_THJ1": 0.6,
+}
+
 
 @dataclass
 class NameMap:
@@ -52,6 +60,7 @@ class NameMap:
     palm_body_id: int
     fingertip_site_ids: list[int]
     fingertip_geom_ids: set[int]
+    finger_geom_ids_per_finger: list[set[int]]
     object_body_id: int
     object_geom_id: int
     obj_qpos_start: int
@@ -117,7 +126,7 @@ def build_scene(
 
     mount = spec.worldbody.add_body(
         name="hand_mount",
-        pos=[0.0, 0.0, config.mount_height],
+        pos=[config.mount_x, config.mount_y, config.mount_height],
         euler=[math.pi, 0.0, 0.0],
     )
     mount_site = mount.add_site(
@@ -128,6 +137,7 @@ def build_scene(
     hand_xml = str(ASSETS_DIR / "right_hand.xml")
     child_spec = mujoco.MjSpec.from_file(hand_xml)
     spec.attach(child_spec, site=mount_site, prefix="")
+    spec.body("rh_forearm").quat = [0.0, 1.0, 0.0, 0.0]
 
     for body_name, site_name in zip(FINGERTIP_BODIES, FINGERTIP_SITE_NAMES, strict=True):
         body = spec.body(body_name)
@@ -217,6 +227,18 @@ def _resolve_names(model: mujoco.MjModel, spec: mujoco.MjSpec) -> NameMap:
         if model.geom_bodyid[gid] in fingertip_body_ids:
             fingertip_geom_ids.add(gid)
 
+    finger_geom_ids_per_finger: list[set[int]] = [set() for _ in FINGER_BODY_PREFIXES]
+    for gid in range(model.ngeom):
+        body_id = model.geom_bodyid[gid]
+        body_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+        if not body_name:
+            continue
+
+        for finger_idx, prefix in enumerate(FINGER_BODY_PREFIXES):
+            if body_name.startswith(prefix):
+                finger_geom_ids_per_finger[finger_idx].add(gid)
+                break
+
     # object + table
     object_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "object")
     object_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "object_geom")
@@ -234,6 +256,7 @@ def _resolve_names(model: mujoco.MjModel, spec: mujoco.MjSpec) -> NameMap:
         palm_body_id=palm_body_id,
         fingertip_site_ids=fingertip_site_ids,
         fingertip_geom_ids=fingertip_geom_ids,
+        finger_geom_ids_per_finger=finger_geom_ids_per_finger,
         object_body_id=object_body_id,
         object_geom_id=object_geom_id,
         obj_qpos_start=obj_qpos_start,

@@ -3,24 +3,27 @@ from dataclasses import dataclass, field
 
 @dataclass
 class SceneConfig:
-    mount_height: float = 0.65
+    mount_x: float = 0.0
+    mount_y: float = 0.0
+    mount_height: float = 0.80
     table_height: float = 0.4
     table_half_size: float = 0.25
     object_mass: float = 0.1
     object_friction: tuple[float, float, float] = (1.0, 0.005, 0.001)
+    action_smoothing_alpha: float = 0.2
     sim_timestep: float = 0.002
-    frame_skip: int = 20  # 500Hz sim / 20 = 25Hz control loop
+    frame_skip: int = 20
 
 
 @dataclass
 class RewardWeights:
-    reaching: float = 1.0
-    grasping: float = 2.0
-    lifting: float = 5.0
-    holding: float = 3.0
+    reaching: float = 0.4
+    grasping: float = 2.5
+    lifting: float = 6.0
+    holding: float = 4.0
     drop: float = 1.0
-    action: float = 1.0
-    action_rate: float = 1.0
+    action: float = 1.5
+    action_rate: float = 1.5
 
 
 @dataclass
@@ -29,6 +32,7 @@ class RewardConfig:
     lift_target: float = 0.1  # target height above table (10cm)
     hold_velocity_threshold: float = 0.05
     drop_penalty: float = -10.0
+    no_contact_idle_penalty: float = -0.08
 
 
 @dataclass
@@ -54,14 +58,14 @@ class TrainConfig:
 
 @dataclass
 class ReorientRewardWeights:
-    orientation_tracking: float = 5.0
-    orientation_success: float = 1.0
+    orientation_tracking: float = 3.0
+    orientation_success: float = 2.0
     cube_drop: float = 1.0
-    velocity_penalty: float = 1.0
-    fingertip_distance: float = 1.0
+    velocity_penalty: float = 1.5
+    fingertip_distance: float = 0.5
     position_penalty: float = 1.0
-    action_penalty: float = 1.0
-    action_rate_penalty: float = 1.0
+    action_penalty: float = 2.0
+    action_rate_penalty: float = 2.0
 
 
 @dataclass
@@ -71,6 +75,9 @@ class ReorientRewardConfig:
     success_hold_steps: int = 25
     drop_penalty: float = -20.0
     drop_height_offset: float = 0.05  # how far below palm counts as "dropped"
+    contact_bonus: float = 0.5
+    no_contact_penalty: float = -0.25
+    min_contacts_for_rotation: int = 2
 
 
 @dataclass
@@ -79,6 +86,8 @@ class ReorientSceneConfig:
     cube_size: float = 0.02  # half-size (so full cube is 4cm)
     cube_mass: float = 0.1
     cube_friction: tuple[float, float, float] = (1.0, 0.005, 0.001)
+    action_smoothing_alpha: float = 0.2
+    target_min_angle: float = 0.15
     sim_timestep: float = 0.002
     frame_skip: int = 20
 
@@ -94,7 +103,7 @@ class ReorientTrainConfig:
     gamma: float = 0.998  # higher gamma bc reorientation needs longer horizon
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.005
+    ent_coef: float = 0.002
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
@@ -106,15 +115,15 @@ class ReorientTrainConfig:
 
 @dataclass
 class PegRewardWeights:
-    reach: float = 1.0
-    grasp: float = 2.0
-    lift: float = 2.0
-    align: float = 5.0
-    depth: float = 1.0
+    reach: float = 0.5
+    grasp: float = 3.0
+    lift: float = 3.0
+    align: float = 1.5
+    depth: float = 2.0
     complete: float = 1.0
     force: float = 1.0
     drop: float = 1.0
-    smoothness: float = 1.0
+    smoothness: float = 2.0
 
 
 @dataclass
@@ -126,17 +135,23 @@ class PegRewardConfig:
     drop_penalty: float = -10.0
     complete_bonus: float = 50.0
     force_threshold: float = 5.0  # penalize contact forces above this (Newtons)
+    idle_stage0_penalty: float = -0.1
+    min_contacts_for_align: int = 2
 
 
 @dataclass
 class PegSceneConfig:
-    mount_height: float = 0.65
+    mount_x: float = 0.0
+    mount_y: float = 0.0
+    mount_height: float = 0.80
     table_height: float = 0.4
     table_half_size: float = 0.25
     clearance: float = 0.004  # initial hole clearance in meters
     hole_depth: float = 0.05
     hole_offset: list[float] = field(default_factory=lambda: [0.1, 0.0])  # XY offset from center
+    spawn_min_radius: float = 0.04
     peg_friction: tuple[float, float, float] = (1.0, 0.005, 0.001)
+    action_smoothing_alpha: float = 0.2
     sim_timestep: float = 0.002
     frame_skip: int = 20
 

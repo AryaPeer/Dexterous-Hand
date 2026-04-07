@@ -1,4 +1,5 @@
 import gymnasium as gym
+import mujoco
 import numpy as np
 import pytest
 
@@ -92,6 +93,23 @@ class TestGraspEnvStep:
             assert abs(reward) < 1000
             if term or trunc:
                 grasp_env.reset()
+
+    def test_finger_contact_metric_detects_overlap(self, grasp_env):
+        grasp_env.reset(seed=0)
+        env = grasp_env.unwrapped
+
+        target_geom = next(iter(env.nm.finger_geom_ids_per_finger[0]))
+        overlap_pos = env.data.geom_xpos[target_geom].copy()
+
+        s = env.nm.obj_qpos_start
+        env.data.qpos[s : s + 3] = overlap_pos
+        env.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
+        env.data.qvel[:] = 0.0
+        mujoco.mj_forward(env.model, env.data)
+
+        zero_action = np.zeros(grasp_env.action_space.shape, dtype=np.float32)
+        _, _, _, _, info = grasp_env.step(zero_action)
+        assert info["metrics/num_finger_contacts"] >= 1.0
 
 
 @pytest.mark.slow

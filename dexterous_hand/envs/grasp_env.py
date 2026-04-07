@@ -8,13 +8,14 @@ import numpy as np
 from dexterous_hand.config import RewardConfig, SceneConfig
 from dexterous_hand.envs.scene_builder import (
     OBJECT_TYPES,
+    TABLE_TASK_FLEXION_BIAS,
     build_scene,
     get_object_half_height,
 )
 from dexterous_hand.rewards.grasp_reward import GraspRewardCalculator
 from dexterous_hand.utils.mujoco_helpers import (
-    get_fingertip_contacts,
-    get_fingertip_positions,
+    get_finger_contacts,
+    get_finger_positions,
     get_object_state,
     get_palm_position,
 )
@@ -71,9 +72,18 @@ class ShadowHandGraspEnv(gym.Env):
 
         # state tracking
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
+        self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._current_object_type: str = self._object_type_names[0]
         self._init_qpos = self.data.qpos.copy()
         self._init_qvel = self.data.qvel.copy()
+
+        for jname, bias in TABLE_TASK_FLEXION_BIAS.items():
+            jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, jname)
+            if jid >= 0:
+                adr = self.model.jnt_qposadr[jid]
+                self._init_qpos[adr] = float(np.clip(
+                    bias, self.model.jnt_range[jid][0], self.model.jnt_range[jid][1],
+                ))
 
         # rendering
         self._renderer: mujoco.Renderer | None = None
@@ -124,7 +134,8 @@ class ShadowHandGraspEnv(gym.Env):
         mujoco.mj_forward(self.model, self.data)
 
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
-        self.reward_calculator.reset()
+        self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
+        self.reward_calculator.reset(initial_object_height=obj_z)
 
         obs = self._get_obs()
         info = {"object_type": self._current_object_type}
@@ -140,8 +151,12 @@ class ShadowHandGraspEnv(gym.Env):
         @rtype: tuple[np.ndarray, float, bool, bool, dict[str, Any]]
         """
 
-        # rescale [-1,1] actions to actuator control ranges
         action = np.clip(action, -1.0, 1.0)
+        alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
+        if alpha > 0.0:
+            action = (1.0 - alpha) * self._smoothed_actions + alpha * action
+        self._smoothed_actions = action.astype(np.float64).copy()
+
         low = self.nm.ctrl_ranges[:, 0]
         high = self.nm.ctrl_ranges[:, 1]
         ctrl = low + (action + 1.0) / 2.0 * (high - low)
@@ -150,7 +165,7 @@ class ShadowHandGraspEnv(gym.Env):
         mujoco.mj_step(self.model, self.data, nstep=self.scene_config.frame_skip)
 
         # read state
-        fingertip_pos = get_fingertip_positions(self.data, self.nm.fingertip_site_ids)
+        finger_pos = get_finger_positions(self.data, self.nm.finger_geom_ids_per_finger)
 
         obj_pos, obj_quat, obj_linvel, obj_angvel = get_object_state(
             self.data,
@@ -159,13 +174,15 @@ class ShadowHandGraspEnv(gym.Env):
             self.nm.obj_qvel_start,
         )
 
-        num_contacts, _ = get_fingertip_contacts(
-            self.model, self.data, self.nm.fingertip_geom_ids, self.nm.object_geom_id
+        num_contacts, _ = get_finger_contacts(
+            self.model,
+            self.data,
+            self.nm.finger_geom_ids_per_finger,
+            self.nm.object_geom_id,
         )
 
-        # reward
         reward, reward_info = self.reward_calculator.compute(
-            fingertip_positions=fingertip_pos,
+            finger_positions=finger_pos,
             object_position=obj_pos,
             object_linear_velocity=obj_linvel,
             num_fingers_in_contact=num_contacts,
@@ -188,6 +205,7 @@ class ShadowHandGraspEnv(gym.Env):
             "object_type": self._current_object_type,
             **reward_info,
         }
+        info["reward/total"] = float(reward)
 
         return obs, float(reward), terminated, False, info
 
@@ -205,7 +223,7 @@ class ShadowHandGraspEnv(gym.Env):
 
         palm_pos = get_palm_position(self.data, nm.palm_body_id)
         rel_pos = obj_pos - palm_pos
-        fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids).flatten()
+        fingertip_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger).flatten()
 
         obs = np.concatenate(
             [

@@ -23,11 +23,10 @@ class TestGraspReward:
     def make_calc(self) -> GraspRewardCalculator:
         return GraspRewardCalculator(RewardConfig(), table_height=0.4)
 
-    # -- key presence -------------------------------------------------------
     def test_all_keys_present(self):
         calc = self.make_calc()
         _, info = calc.compute(
-            fingertip_positions=_fingertips_at(np.array([0.0, 0.0, 0.5])),
+            finger_positions=_fingertips_at(np.array([0.0, 0.0, 0.5])),
             object_position=np.array([0.0, 0.0, 0.5]),
             object_linear_velocity=ZERO3,
             num_fingers_in_contact=0,
@@ -41,6 +40,7 @@ class TestGraspReward:
             "reward/lifting",
             "reward/holding",
             "reward/drop",
+            "reward/idle_penalty",
             "reward/action_penalty",
             "reward/action_rate_penalty",
             "reward/total",
@@ -51,7 +51,6 @@ class TestGraspReward:
         }
         assert expected_keys == set(info.keys())
 
-    # -- reaching -----------------------------------------------------------
     def test_reaching_decreases_with_distance(self):
         calc = self.make_calc()
         obj = np.array([0.0, 0.0, 0.5])
@@ -73,7 +72,6 @@ class TestGraspReward:
         )
         assert info_close["reward/reaching"] > info_far["reward/reaching"]
 
-    # -- grasping -----------------------------------------------------------
     def test_grasping_proportional_to_contacts(self):
         calc = self.make_calc()
         obj = np.array([0.0, 0.0, 0.5])
@@ -96,7 +94,6 @@ class TestGraspReward:
         assert_allclose(info5["reward/grasping"], 1.0)
         assert_allclose(info0["reward/grasping"], 0.0)
 
-    # -- lifting ------------------------------------------------------------
     def test_lifting_scales_with_height(self):
         calc = self.make_calc()
         obj_at_table = np.array([0.0, 0.0, 0.4])  # table_height
@@ -105,7 +102,7 @@ class TestGraspReward:
             _fingertips_at(obj_at_table),
             obj_at_table,
             ZERO3,
-            0,
+            3,
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -113,17 +110,15 @@ class TestGraspReward:
             _fingertips_at(obj_lifted),
             obj_lifted,
             ZERO3,
-            0,
+            3,
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
         assert_allclose(info_low["reward/lifting"], 0.0)
         assert_allclose(info_high["reward/lifting"], 1.0)
 
-    # -- holding ------------------------------------------------------------
     def test_holding_requires_height_and_stability(self):
         calc = self.make_calc()
-        # Above target height and slow
         obj_high = np.array([0.0, 0.0, 0.51])
         _, info_hold = calc.compute(
             _fingertips_at(obj_high),
@@ -135,7 +130,6 @@ class TestGraspReward:
         )
         assert_allclose(info_hold["reward/holding"], 1.0)
 
-        # Above target but fast
         _, info_fast = calc.compute(
             _fingertips_at(obj_high),
             obj_high,
@@ -146,7 +140,6 @@ class TestGraspReward:
         )
         assert_allclose(info_fast["reward/holding"], 0.0)
 
-        # Below target and slow
         obj_low = np.array([0.0, 0.0, 0.45])
         _, info_low = calc.compute(
             _fingertips_at(obj_low),
@@ -158,12 +151,10 @@ class TestGraspReward:
         )
         assert_allclose(info_low["reward/holding"], 0.0)
 
-    # -- drop penalty -------------------------------------------------------
     def test_drop_penalty_triggers(self):
         calc = self.make_calc()
-        obj_high = np.array([0.0, 0.0, 0.51])  # >= table + lift_target
+        obj_high = np.array([0.0, 0.0, 0.51])
 
-        # Lift it first
         calc.compute(
             _fingertips_at(obj_high),
             obj_high,
@@ -173,8 +164,7 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
 
-        # Now drop it below table + 1cm
-        obj_dropped = np.array([0.0, 0.0, 0.405])  # 0.005 above table < 0.01
+        obj_dropped = np.array([0.0, 0.0, 0.405])
         _, info = calc.compute(
             _fingertips_at(obj_dropped),
             obj_dropped,
@@ -198,7 +188,6 @@ class TestGraspReward:
         )
         assert_allclose(info["reward/drop"], 0.0)
 
-    # -- action penalties ---------------------------------------------------
     def test_action_penalty_negative(self):
         calc = self.make_calc()
         actions = np.ones(20)
@@ -230,13 +219,12 @@ class TestGraspReward:
         )
         assert_allclose(info["reward/action_rate_penalty"], 0.0)
 
-    # -- finiteness ---------------------------------------------------------
     def test_reward_is_finite(self):
         calc = self.make_calc()
         rng = np.random.default_rng(42)
         for _ in range(20):
             total, info = calc.compute(
-                fingertip_positions=rng.uniform(-1, 1, (5, 3)),
+                finger_positions=rng.uniform(-1, 1, (5, 3)),
                 object_position=rng.uniform(-1, 1, 3),
                 object_linear_velocity=rng.uniform(-5, 5, 3),
                 num_fingers_in_contact=rng.integers(0, 6),
@@ -256,20 +244,25 @@ class TestReorientReward:
             np.array([0.0, 0.0, 0.5]),
         )
 
-    # -- key presence -------------------------------------------------------
-    def test_all_keys_present(self):
-        calc = self.make_calc()
-        _, info, _ = calc.compute(
+    def _default_kwargs(self, **overrides) -> dict:
+        defaults = dict(
             cube_quat=IDENTITY_QUAT,
             target_quat=IDENTITY_QUAT,
             cube_pos=np.array([0.0, 0.0, 0.5]),
             cube_linvel=ZERO3,
             cube_angvel=ZERO3,
-            fingertip_positions=_fingertips_at(np.array([0.0, 0.0, 0.5])),
+            finger_positions=_fingertips_at(np.array([0.0, 0.0, 0.5])),
+            num_fingers_in_contact=3,
             actions=ZERO_ACTIONS,
             previous_actions=ZERO_ACTIONS,
             dropped=False,
         )
+        defaults.update(overrides)
+        return defaults
+
+    def test_all_keys_present(self):
+        calc = self.make_calc()
+        _, info, _ = calc.compute(**self._default_kwargs())
 
         expected_keys = {
             "reward/orientation_tracking",
@@ -280,29 +273,20 @@ class TestReorientReward:
             "reward/position_penalty",
             "reward/action_penalty",
             "reward/action_rate_penalty",
+            "reward/finger_contact_bonus",
+            "reward/no_contact_penalty",
             "reward/total",
             "metrics/angular_distance",
+            "metrics/num_finger_contacts",
             "metrics/mean_fingertip_dist",
             "metrics/cube_displacement",
             "metrics/success_steps",
         }
         assert expected_keys == set(info.keys())
 
-    # -- orientation tracking -----------------------------------------------
     def test_perfect_orientation_max_tracking(self):
         calc = self.make_calc()
-        _, info, _ = calc.compute(
-            cube_quat=IDENTITY_QUAT,
-            target_quat=IDENTITY_QUAT,
-            cube_pos=np.array([0.0, 0.0, 0.5]),
-            cube_linvel=ZERO3,
-            cube_angvel=ZERO3,
-            fingertip_positions=_fingertips_at(np.array([0.0, 0.0, 0.5])),
-            actions=ZERO_ACTIONS,
-            previous_actions=ZERO_ACTIONS,
-            dropped=False,
-        )
-        # exp(-5.0 * 0) = 1.0
+        _, info, _ = calc.compute(**self._default_kwargs())
         assert_allclose(info["reward/orientation_tracking"], 1.0, rtol=1e-6)
 
     def test_90_degree_error_lower_tracking(self):
@@ -310,152 +294,56 @@ class TestReorientReward:
         from dexterous_hand.utils.quaternion import quat_from_axis_angle
 
         q90 = quat_from_axis_angle(np.array([0.0, 0.0, 1.0]), np.pi / 2)
-        _, info, _ = calc.compute(
-            cube_quat=IDENTITY_QUAT,
-            target_quat=q90,
-            cube_pos=np.array([0.0, 0.0, 0.5]),
-            cube_linvel=ZERO3,
-            cube_angvel=ZERO3,
-            fingertip_positions=_fingertips_at(np.array([0.0, 0.0, 0.5])),
-            actions=ZERO_ACTIONS,
-            previous_actions=ZERO_ACTIONS,
-            dropped=False,
-        )
-        # exp(-5 * pi/2) is much less than 1
+        _, info, _ = calc.compute(**self._default_kwargs(target_quat=q90))
         expected = float(np.exp(-5.0 * np.pi / 2))
         assert_allclose(info["reward/orientation_tracking"], expected, rtol=1e-5)
 
-    # -- success detection --------------------------------------------------
     def test_success_detection_after_hold_steps(self):
         calc = self.make_calc()
-        cube_pos = np.array([0.0, 0.0, 0.5])
         target_reached = False
         for _ in range(25):
-            _, _, target_reached = calc.compute(
-                cube_quat=IDENTITY_QUAT,
-                target_quat=IDENTITY_QUAT,
-                cube_pos=cube_pos,
-                cube_linvel=ZERO3,
-                cube_angvel=ZERO3,
-                fingertip_positions=_fingertips_at(cube_pos),
-                actions=ZERO_ACTIONS,
-                previous_actions=ZERO_ACTIONS,
-                dropped=False,
-            )
+            _, _, target_reached = calc.compute(**self._default_kwargs())
         assert target_reached is True
 
     def test_success_resets_on_failure(self):
         calc = self.make_calc()
-        cube_pos = np.array([0.0, 0.0, 0.5])
         from dexterous_hand.utils.quaternion import quat_from_axis_angle
         far_quat = quat_from_axis_angle(np.array([1.0, 0.0, 0.0]), np.pi / 2)
 
-        # Accumulate 20 steps of success
         for _ in range(20):
-            calc.compute(
-                IDENTITY_QUAT,
-                IDENTITY_QUAT,
-                cube_pos,
-                ZERO3,
-                ZERO3,
-                _fingertips_at(cube_pos),
-                ZERO_ACTIONS,
-                ZERO_ACTIONS,
-                False,
-            )
+            calc.compute(**self._default_kwargs())
 
-        # Break the streak
-        calc.compute(
-            IDENTITY_QUAT,
-            far_quat,
-            cube_pos,
-            ZERO3,
-            ZERO3,
-            _fingertips_at(cube_pos),
-            ZERO_ACTIONS,
-            ZERO_ACTIONS,
-            False,
-        )
+        calc.compute(**self._default_kwargs(target_quat=far_quat))
 
-        # Now 5 more successes (total should be 5, not 26)
         target_reached = False
         for _ in range(5):
-            _, _, target_reached = calc.compute(
-                IDENTITY_QUAT,
-                IDENTITY_QUAT,
-                cube_pos,
-                ZERO3,
-                ZERO3,
-                _fingertips_at(cube_pos),
-                ZERO_ACTIONS,
-                ZERO_ACTIONS,
-                False,
-            )
+            _, _, target_reached = calc.compute(**self._default_kwargs())
         assert target_reached is False
 
-    # -- drop penalty -------------------------------------------------------
     def test_drop_penalty(self):
         calc = self.make_calc()
-        cube_pos = np.array([0.0, 0.0, 0.5])
-        _, info, _ = calc.compute(
-            IDENTITY_QUAT,
-            IDENTITY_QUAT,
-            cube_pos,
-            ZERO3,
-            ZERO3,
-            _fingertips_at(cube_pos),
-            ZERO_ACTIONS,
-            ZERO_ACTIONS,
-            dropped=True,
-        )
+        _, info, _ = calc.compute(**self._default_kwargs(dropped=True))
         assert_allclose(info["reward/cube_drop"], -20.0)
 
-    # -- position penalty ---------------------------------------------------
     def test_position_penalty_increases_with_displacement(self):
         calc = self.make_calc()
-        cube_near = np.array([0.0, 0.0, 0.5])  # at initial pos
-        cube_far = np.array([0.1, 0.1, 0.5])  # displaced
-        _, info_near, _ = calc.compute(
-            IDENTITY_QUAT,
-            IDENTITY_QUAT,
-            cube_near,
-            ZERO3,
-            ZERO3,
-            _fingertips_at(cube_near),
-            ZERO_ACTIONS,
-            ZERO_ACTIONS,
-            False,
-        )
-        _, info_far, _ = calc.compute(
-            IDENTITY_QUAT,
-            IDENTITY_QUAT,
-            cube_far,
-            ZERO3,
-            ZERO3,
-            _fingertips_at(cube_far),
-            ZERO_ACTIONS,
-            ZERO_ACTIONS,
-            False,
-        )
-        # More displacement => more negative penalty
+        cube_near = np.array([0.0, 0.0, 0.5])
+        cube_far = np.array([0.1, 0.1, 0.5])
+        _, info_near, _ = calc.compute(**self._default_kwargs(
+            cube_pos=cube_near, finger_positions=_fingertips_at(cube_near),
+        ))
+        _, info_far, _ = calc.compute(**self._default_kwargs(
+            cube_pos=cube_far, finger_positions=_fingertips_at(cube_far),
+        ))
         assert info_far["reward/position_penalty"] < info_near["reward/position_penalty"]
         assert_allclose(info_near["reward/position_penalty"], 0.0, atol=1e-10)
 
-    # -- velocity penalty ---------------------------------------------------
     def test_velocity_penalty_negative_for_moving_cube(self):
         calc = self.make_calc()
-        cube_pos = np.array([0.0, 0.0, 0.5])
-        _, info, _ = calc.compute(
-            IDENTITY_QUAT,
-            IDENTITY_QUAT,
-            cube_pos,
+        _, info, _ = calc.compute(**self._default_kwargs(
             cube_linvel=np.array([1.0, 0.0, 0.0]),
             cube_angvel=np.array([0.0, 2.0, 0.0]),
-            fingertip_positions=_fingertips_at(cube_pos),
-            actions=ZERO_ACTIONS,
-            previous_actions=ZERO_ACTIONS,
-            dropped=False,
-        )
+        ))
         assert info["reward/velocity_penalty"] < 0.0
 
 
@@ -469,7 +357,7 @@ class TestPegReward:
     def _default_kwargs(self, **overrides) -> dict:
         defaults = dict(
             stage=0,
-            fingertip_positions=_fingertips_at(np.array([0.0, 0.0, 0.45])),
+            finger_positions=_fingertips_at(np.array([0.0, 0.0, 0.45])),
             peg_position=np.array([0.0, 0.0, 0.45]),
             peg_axis=np.array([0.0, 0.0, 1.0]),
             hole_position=np.array([0.1, 0.0, 0.45]),
@@ -484,7 +372,6 @@ class TestPegReward:
         defaults.update(overrides)
         return defaults
 
-    # -- key presence -------------------------------------------------------
     def test_all_keys_present(self):
         calc = self.make_calc()
         _, info = calc.compute(**self._default_kwargs())
@@ -499,6 +386,8 @@ class TestPegReward:
             "reward/force_penalty",
             "reward/drop",
             "reward/smoothness",
+            "reward/action_magnitude_penalty",
+            "reward/idle_stage0_penalty",
             "reward/total",
             "metrics/stage",
             "metrics/num_finger_contacts",
@@ -510,7 +399,6 @@ class TestPegReward:
         }
         assert expected_keys == set(info.keys())
 
-    # -- reach gating -------------------------------------------------------
     def test_reach_only_in_stage_0(self):
         calc = self.make_calc()
         _, info0 = calc.compute(**self._default_kwargs(stage=0))
@@ -518,7 +406,6 @@ class TestPegReward:
         assert info0["reward/reach"] > 0.0
         assert_allclose(info1["reward/reach"], 0.0)
 
-    # -- grasp proportional -------------------------------------------------
     def test_grasp_proportional(self):
         calc = self.make_calc()
         _, info3 = calc.compute(**self._default_kwargs(num_fingers_in_contact=3))
@@ -526,7 +413,6 @@ class TestPegReward:
         assert_allclose(info3["reward/grasp"], 1.0)
         assert_allclose(info1["reward/grasp"], 1.0 / 3.0, rtol=1e-6)
 
-    # -- lift ---------------------------------------------------------------
     def test_lift_scales_with_height(self):
         calc = self.make_calc()
         _, info_low = calc.compute(**self._default_kwargs(peg_height=0.4))
@@ -534,7 +420,6 @@ class TestPegReward:
         assert_allclose(info_low["reward/lift"], 0.0)
         assert_allclose(info_high["reward/lift"], 1.0)
 
-    # -- insertion depth ----------------------------------------------------
     def test_insertion_depth_reward(self):
         calc = self.make_calc()
         peg_length = PegRewardConfig().peg_half_length * 2.0  # 0.06
@@ -542,6 +427,8 @@ class TestPegReward:
         peg_pos = np.array([0.0, 0.0, 0.45])  # lateral_dist = 0
         _, info = calc.compute(
             **self._default_kwargs(
+                stage=3,
+                num_fingers_in_contact=3,
                 peg_position=peg_pos,
                 hole_position=hole_pos,
                 insertion_depth=peg_length * 0.5,
@@ -553,7 +440,6 @@ class TestPegReward:
     def test_insertion_depth_gated_by_lateral(self):
         calc = self.make_calc()
         peg_length = PegRewardConfig().peg_half_length * 2.0
-        # Lateral distance >= 0.005
         peg_pos = np.array([0.0, 0.0, 0.45])
         hole_pos = np.array([0.01, 0.0, 0.45])  # 10mm lateral
         _, info = calc.compute(
@@ -565,7 +451,6 @@ class TestPegReward:
         )
         assert_allclose(info["reward/depth"], 0.0)
 
-    # -- completion bonus ---------------------------------------------------
     def test_completion_bonus_after_hold(self):
         calc = self.make_calc()
         peg_length = PegRewardConfig().peg_half_length * 2.0
@@ -578,11 +463,9 @@ class TestPegReward:
             _, info = calc.compute(**kwargs)
         assert_allclose(info["reward/complete"], 50.0)
 
-    # -- force penalty ------------------------------------------------------
     def test_force_penalty_above_threshold(self):
         calc = self.make_calc()
         _, info = calc.compute(**self._default_kwargs(contact_force_magnitude=10.0))
-        # excess = 10 - 5 = 5, penalty = -0.01 * 25 = -0.25
         assert_allclose(info["reward/force_penalty"], -0.25, rtol=1e-6)
 
     def test_force_penalty_below_threshold(self):
@@ -590,14 +473,11 @@ class TestPegReward:
         _, info = calc.compute(**self._default_kwargs(contact_force_magnitude=3.0))
         assert_allclose(info["reward/force_penalty"], 0.0)
 
-    # -- drop penalty -------------------------------------------------------
     def test_drop_penalty(self):
         calc = self.make_calc()
 
-        # First, get it grasped (3+ contacts)
         calc.compute(**self._default_kwargs(num_fingers_in_contact=3))
 
-        # Then drop it below table - 0.02
         _, info = calc.compute(
             **self._default_kwargs(
                 peg_height=self.TABLE_HEIGHT - 0.03,
@@ -606,7 +486,6 @@ class TestPegReward:
         )
         assert_allclose(info["reward/drop"], -10.0)
 
-    # -- smoothness ---------------------------------------------------------
     def test_smoothness_zero_for_constant_actions(self):
         calc = self.make_calc()
         actions = np.ones(20) * 0.3

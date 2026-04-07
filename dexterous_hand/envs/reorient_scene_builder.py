@@ -6,6 +6,7 @@ import numpy as np
 from dexterous_hand.config import ReorientSceneConfig
 from dexterous_hand.envs.scene_builder import (
     ASSETS_DIR,
+    FINGER_BODY_PREFIXES,
     FINGERTIP_BODIES,
     FINGERTIP_OFFSETS,
     FINGERTIP_SITE_NAMES,
@@ -29,6 +30,7 @@ class ReorientNameMap:
     palm_body_id: int
     fingertip_site_ids: list[int]
     fingertip_geom_ids: set[int]
+    finger_geom_ids_per_finger: list[set[int]]
     cube_body_id: int
     cube_geom_id: int
     cube_qpos_start: int
@@ -169,6 +171,18 @@ def _resolve_reorient_names(model: mujoco.MjModel) -> ReorientNameMap:
         if model.geom_bodyid[gid] in fingertip_body_ids:
             fingertip_geom_ids.add(gid)
 
+    finger_geom_ids_per_finger: list[set[int]] = [set() for _ in FINGER_BODY_PREFIXES]
+    for gid in range(model.ngeom):
+        body_id = model.geom_bodyid[gid]
+        body_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+        if not body_name:
+            continue
+
+        for finger_idx, prefix in enumerate(FINGER_BODY_PREFIXES):
+            if body_name.startswith(prefix):
+                finger_geom_ids_per_finger[finger_idx].add(gid)
+                break
+
     # cube
     cube_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "cube")
     cube_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "cube_geom")
@@ -185,6 +199,7 @@ def _resolve_reorient_names(model: mujoco.MjModel) -> ReorientNameMap:
         palm_body_id=palm_body_id,
         fingertip_site_ids=fingertip_site_ids,
         fingertip_geom_ids=fingertip_geom_ids,
+        finger_geom_ids_per_finger=finger_geom_ids_per_finger,
         cube_body_id=cube_body_id,
         cube_geom_id=cube_geom_id,
         cube_qpos_start=cube_qpos_start,
