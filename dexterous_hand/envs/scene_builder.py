@@ -39,9 +39,9 @@ FINGERTIP_OFFSETS: dict[str, list[float]] = {
 FINGER_BODY_PREFIXES = ["rh_ff", "rh_mf", "rh_rf", "rh_lf", "rh_th"]
 
 TABLE_TASK_FLEXION_BIAS: dict[str, float] = {
-    "rh_FFJ3": 0.8, "rh_MFJ3": 0.8, "rh_RFJ3": 0.8, "rh_LFJ3": 0.8,
-    "rh_FFJ2": 0.6, "rh_MFJ2": 0.6, "rh_RFJ2": 0.6, "rh_LFJ2": 0.6,
-    "rh_THJ4": 0.8, "rh_THJ1": 0.6,
+    "rh_FFJ3": 1.2, "rh_MFJ3": 1.2, "rh_RFJ3": 1.2, "rh_LFJ3": 1.2,
+    "rh_FFJ2": 1.0, "rh_MFJ2": 1.0, "rh_RFJ2": 1.0, "rh_LFJ2": 1.0,
+    "rh_THJ4": 1.2, "rh_THJ1": 1.0,
 }
 
 
