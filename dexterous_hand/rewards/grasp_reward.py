@@ -92,7 +92,8 @@ class GraspRewardCalculator:
         drop = self.drop_penalty_value if dropped else 0.0
         info["reward/drop"] = drop
 
-        idle_penalty = self.no_contact_idle_penalty if (num_fingers_in_contact == 0 and lifting < 0.01) else 0.0
+        idle_raw = self.no_contact_idle_penalty if (num_fingers_in_contact == 0 and lifting < 0.01) else 0.0
+        idle_penalty = self.weights.idle * idle_raw
         info["reward/idle_penalty"] = idle_penalty
 
         action_pen = -0.01 * float(np.sum(actions**2))

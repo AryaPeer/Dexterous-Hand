@@ -139,10 +139,12 @@ class PegRewardCalculator:
         smoothness = -0.002 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/smoothness"] = smoothness
 
-        action_magnitude_penalty = -0.002 * float(np.sum(actions**2))
+        action_mag_raw = -0.002 * float(np.sum(actions**2))
+        action_magnitude_penalty = self.weights.action_magnitude * action_mag_raw
         info["reward/action_magnitude_penalty"] = action_magnitude_penalty
 
-        idle_stage0_penalty = self.idle_stage0_penalty if (stage == 0 and num_fingers_in_contact == 0) else 0.0
+        idle_raw = self.idle_stage0_penalty if (stage == 0 and num_fingers_in_contact == 0) else 0.0
+        idle_stage0_penalty = self.weights.idle_stage0 * idle_raw
         info["reward/idle_stage0_penalty"] = idle_stage0_penalty
 
         total = (

@@ -24,6 +24,7 @@ class RewardWeights:
     drop: float = 1.0
     action: float = 1.5
     action_rate: float = 1.5
+    idle: float = 1.0
 
 
 @dataclass
@@ -66,6 +67,8 @@ class ReorientRewardWeights:
     position_penalty: float = 1.0
     action_penalty: float = 2.0
     action_rate_penalty: float = 2.0
+    contact_bonus: float = 1.0
+    no_contact: float = 1.0
 
 
 @dataclass
@@ -86,7 +89,7 @@ class ReorientSceneConfig:
     cube_size: float = 0.02  # half-size (so full cube is 4cm)
     cube_mass: float = 0.1
     cube_friction: tuple[float, float, float] = (1.0, 0.005, 0.001)
-    action_smoothing_alpha: float = 0.2
+    action_smoothing_alpha: float = 0.4
     target_min_angle: float = 0.15
     sim_timestep: float = 0.002
     frame_skip: int = 20
@@ -124,6 +127,8 @@ class PegRewardWeights:
     force: float = 1.0
     drop: float = 1.0
     smoothness: float = 2.0
+    action_magnitude: float = 1.0
+    idle_stage0: float = 1.0
 
 
 @dataclass

@@ -15,7 +15,7 @@ from dexterous_hand.envs.scene_builder import (
 from dexterous_hand.rewards.grasp_reward import GraspRewardCalculator
 from dexterous_hand.utils.mujoco_helpers import (
     get_finger_contacts,
-    get_finger_positions,
+    get_fingertip_positions,
     get_object_state,
     get_palm_position,
 )
@@ -165,7 +165,7 @@ class ShadowHandGraspEnv(gym.Env):
         mujoco.mj_step(self.model, self.data, nstep=self.scene_config.frame_skip)
 
         # read state
-        finger_pos = get_finger_positions(self.data, self.nm.finger_geom_ids_per_finger)
+        finger_pos = get_fingertip_positions(self.data, self.nm.fingertip_site_ids)
 
         obj_pos, obj_quat, obj_linvel, obj_angvel = get_object_state(
             self.data,
@@ -223,7 +223,7 @@ class ShadowHandGraspEnv(gym.Env):
 
         palm_pos = get_palm_position(self.data, nm.palm_body_id)
         rel_pos = obj_pos - palm_pos
-        fingertip_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger).flatten()
+        fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids).flatten()
 
         obs = np.concatenate(
             [

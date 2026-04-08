@@ -81,7 +81,7 @@ class ReorientRewardCalculator:
 
         at_target = ang_dist < self.success_threshold
 
-        if at_target:
+        if at_target and num_fingers_in_contact >= min_contacts:
             self._success_steps += 1
         else:
             self._success_steps = 0
@@ -112,10 +112,12 @@ class ReorientRewardCalculator:
         action_rate_penalty = -0.002 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/action_rate_penalty"] = action_rate_penalty
 
-        finger_contact_bonus = self.contact_bonus_value * min(num_fingers_in_contact / 3.0, 1.0)
+        contact_raw = self.contact_bonus_value * min(num_fingers_in_contact / 3.0, 1.0)
+        finger_contact_bonus = self.weights.contact_bonus * contact_raw
         info["reward/finger_contact_bonus"] = finger_contact_bonus
 
-        no_contact_penalty = self.no_contact_penalty_value if num_fingers_in_contact == 0 else 0.0
+        no_contact_raw = self.no_contact_penalty_value if num_fingers_in_contact == 0 else 0.0
+        no_contact_penalty = self.weights.no_contact * no_contact_raw
         info["reward/no_contact_penalty"] = no_contact_penalty
 
         total = (

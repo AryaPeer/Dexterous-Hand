@@ -14,7 +14,7 @@ from dexterous_hand.utils.mujoco_helpers import (
     get_contact_forces,
     get_contact_forces_on_body,
     get_finger_contacts,
-    get_finger_positions,
+    get_fingertip_positions,
     get_insertion_depth,
     get_object_state,
     get_palm_position,
@@ -131,8 +131,14 @@ class ShadowHandPegEnv(gym.Env):
             self.data.qpos[s : s + 3] = palm_pos + np.array([0.0, 0.0, -0.03], dtype=np.float64)
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
         else:
-            peg_x = float(self.np_random.uniform(-0.05, 0.05))
-            peg_y = float(self.np_random.uniform(-0.05, 0.05))
+            hole_xy = np.array(self.scene_config.hole_offset[:2], dtype=np.float64)
+            min_r = self.scene_config.spawn_min_radius
+            peg_x, peg_y = 0.0, 0.0
+            for _ in range(100):
+                peg_x = float(self.np_random.uniform(-0.05, 0.05))
+                peg_y = float(self.np_random.uniform(-0.05, 0.05))
+                if np.linalg.norm([peg_x - hole_xy[0], peg_y - hole_xy[1]]) >= min_r:
+                    break
             peg_z = self.scene_config.table_height + self.reward_config.peg_half_length + 0.001
             self.data.qpos[s : s + 3] = [peg_x, peg_y, peg_z]
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
@@ -176,7 +182,7 @@ class ShadowHandPegEnv(gym.Env):
 
         nm = self.nm
 
-        finger_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger)
+        finger_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
 
         peg_pos, peg_quat, peg_linvel, peg_angvel = get_object_state(
             self.data,
@@ -343,7 +349,7 @@ class ShadowHandPegEnv(gym.Env):
 
             rel_pos, ang_error = get_peg_hole_relative(self.data, nm.peg_body_id, nm.hole_body_id)
 
-            fingertip_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger)
+            fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
             fingertip_peg_dist = np.linalg.norm(fingertip_pos - peg_pos, axis=1)
 
             palm_pos = get_palm_position(self.data, nm.palm_body_id)

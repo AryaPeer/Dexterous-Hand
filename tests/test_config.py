@@ -46,7 +46,7 @@ class TestConfigDefaults:
         c = ReorientSceneConfig()
         assert c.mount_height == 0.4
         assert c.cube_size == 0.02
-        assert c.action_smoothing_alpha == 0.2
+        assert c.action_smoothing_alpha == 0.4
         assert c.target_min_angle == 0.15
 
     def test_reorient_reward_config(self):

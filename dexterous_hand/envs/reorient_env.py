@@ -10,7 +10,7 @@ from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
 from dexterous_hand.rewards.reorient_reward import ReorientRewardCalculator
 from dexterous_hand.utils.mujoco_helpers import (
     get_finger_contacts,
-    get_finger_positions,
+    get_fingertip_positions,
     get_cube_face_contacts,
     get_object_state,
     get_palm_position,
@@ -164,7 +164,7 @@ class ShadowHandReorientEnv(gym.Env):
         mujoco.mj_step(self.model, self.data, nstep=self.scene_config.frame_skip)
 
         # read state
-        fingertip_pos = get_finger_positions(self.data, self.nm.finger_geom_ids_per_finger)
+        fingertip_pos = get_fingertip_positions(self.data, self.nm.fingertip_site_ids)
 
         cube_pos, cube_quat, cube_linvel, cube_angvel = get_object_state(
             self.data,
@@ -246,7 +246,7 @@ class ShadowHandReorientEnv(gym.Env):
             self.data, nm.cube_body_id, nm.cube_qpos_start, nm.cube_qvel_start
         )
 
-        fingertip_pos = get_finger_positions(self.data, nm.finger_geom_ids_per_finger)
+        fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
         fingertip_cube_dists = np.linalg.norm(fingertip_pos - cube_pos, axis=1)
 
         err_quat = quat_multiply(quat_conjugate(cube_quat), self._target_quat)
