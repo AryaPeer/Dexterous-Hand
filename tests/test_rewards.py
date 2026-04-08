@@ -384,6 +384,7 @@ class TestPegReward:
             insertion_depth=0.0,
             contact_force_magnitude=0.0,
             num_fingers_in_contact=0,
+            contact_finger_indices=set(),
             peg_height=0.45,
             actions=ZERO_ACTIONS,
             previous_actions=ZERO_ACTIONS,
@@ -398,6 +399,7 @@ class TestPegReward:
         expected_keys = {
             "reward/reach",
             "reward/grasp",
+            "reward/grasp_quality",
             "reward/lift",
             "reward/align",
             "reward/depth",
@@ -427,8 +429,8 @@ class TestPegReward:
 
     def test_grasp_proportional(self):
         calc = self.make_calc()
-        _, info3 = calc.compute(**self._default_kwargs(num_fingers_in_contact=3))
-        _, info1 = calc.compute(**self._default_kwargs(num_fingers_in_contact=1))
+        _, info3 = calc.compute(**self._default_kwargs(num_fingers_in_contact=3, contact_finger_indices={0, 1, 2}))
+        _, info1 = calc.compute(**self._default_kwargs(num_fingers_in_contact=1, contact_finger_indices={0}))
         assert_allclose(info3["reward/grasp"], 1.0)
         assert_allclose(info1["reward/grasp"], 1.0 / 3.0, rtol=1e-6)
 

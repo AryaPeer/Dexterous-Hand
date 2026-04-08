@@ -191,7 +191,7 @@ class ShadowHandPegEnv(gym.Env):
             nm.peg_qvel_start,
         )
 
-        num_contacts, _ = get_finger_contacts(
+        num_contacts, contact_finger_indices = get_finger_contacts(
             self.model,
             self.data,
             nm.finger_geom_ids_per_finger,
@@ -248,6 +248,7 @@ class ShadowHandPegEnv(gym.Env):
             insertion_depth=insertion_depth,
             contact_force_magnitude=reward_force_mag,
             num_fingers_in_contact=num_contacts,
+            contact_finger_indices=contact_finger_indices,
             peg_height=peg_height,
             actions=action.astype(np.float64),
             previous_actions=self._previous_actions,

@@ -50,6 +50,7 @@ class PegRewardCalculator:
         insertion_depth: float,
         contact_force_magnitude: float,
         num_fingers_in_contact: int,
+        contact_finger_indices: set[int],
         peg_height: float,
         actions: np.ndarray,
         previous_actions: np.ndarray,
@@ -74,6 +75,8 @@ class PegRewardCalculator:
         @type contact_force_magnitude: float
         @param num_fingers_in_contact: fingers touching peg
         @type num_fingers_in_contact: int
+        @param contact_finger_indices: set of finger indices currently in contact
+        @type contact_finger_indices: set[int]
         @param peg_height: peg z-position
         @type peg_height: float
         @param actions: current actions
@@ -96,7 +99,14 @@ class PegRewardCalculator:
             reach = 0.0
         info["reward/reach"] = reach
 
-        grasp = min(num_fingers_in_contact / 3.0, 1.0)
+        side_contacts = 0
+        for idx in contact_finger_indices:
+            if finger_positions[idx, 2] <= peg_position[2] + 0.015:
+                side_contacts += 1
+        side_ratio = side_contacts / max(num_fingers_in_contact, 1)
+        info["reward/grasp_quality"] = side_ratio
+
+        grasp = min(num_fingers_in_contact / 3.0, 1.0) * (0.3 + 0.7 * side_ratio)
         info["reward/grasp"] = grasp
 
         lift_height = max(peg_height - self._initial_peg_height, 0.0)
