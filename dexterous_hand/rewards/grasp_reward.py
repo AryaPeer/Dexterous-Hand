@@ -40,6 +40,7 @@ class GraspRewardCalculator:
         object_position: np.ndarray,
         object_linear_velocity: np.ndarray,
         num_fingers_in_contact: int,
+        contact_finger_indices: set[int],
         actions: np.ndarray,
         previous_actions: np.ndarray,
     ) -> tuple[float, dict[str, float]]:
@@ -53,6 +54,8 @@ class GraspRewardCalculator:
         @type object_linear_velocity: np.ndarray
         @param num_fingers_in_contact: fingers touching the object
         @type num_fingers_in_contact: int
+        @param contact_finger_indices: set of finger indices currently in contact
+        @type contact_finger_indices: set[int]
         @param actions: (20,) current actions
         @type actions: np.ndarray
         @param previous_actions: (20,) last step's actions
@@ -72,7 +75,14 @@ class GraspRewardCalculator:
         reaching = float(np.exp(-10.0 * np.mean(dists))) * (1.0 - 0.5 * contact_factor)
         info["reward/reaching"] = reaching
 
-        grasping = num_fingers_in_contact / 5.0
+        side_contacts = 0
+        for idx in contact_finger_indices:
+            if finger_positions[idx, 2] <= object_position[2] + 0.015:
+                side_contacts += 1
+        side_ratio = side_contacts / max(num_fingers_in_contact, 1)
+        info["reward/grasp_quality"] = side_ratio
+
+        grasping = (num_fingers_in_contact / 5.0) * (0.3 + 0.7 * side_ratio)
         info["reward/grasping"] = grasping
 
         lift_hold_gate = 1.0 if num_fingers_in_contact >= 2 else 0.0

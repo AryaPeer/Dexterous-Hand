@@ -30,6 +30,7 @@ class TestGraspReward:
             object_position=np.array([0.0, 0.0, 0.5]),
             object_linear_velocity=ZERO3,
             num_fingers_in_contact=0,
+            contact_finger_indices=set(),
             actions=ZERO_ACTIONS,
             previous_actions=ZERO_ACTIONS,
         )
@@ -43,6 +44,7 @@ class TestGraspReward:
             "reward/idle_penalty",
             "reward/action_penalty",
             "reward/action_rate_penalty",
+            "reward/grasp_quality",
             "reward/total",
             "metrics/num_finger_contacts",
             "metrics/object_height",
@@ -59,6 +61,7 @@ class TestGraspReward:
             obj,
             ZERO3,
             0,
+            set(),
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -67,6 +70,7 @@ class TestGraspReward:
             obj,
             ZERO3,
             0,
+            set(),
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -80,6 +84,7 @@ class TestGraspReward:
             obj,
             ZERO3,
             5,
+            {0, 1, 2, 3, 4},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -88,6 +93,7 @@ class TestGraspReward:
             obj,
             ZERO3,
             0,
+            set(),
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -103,6 +109,7 @@ class TestGraspReward:
             obj_at_table,
             ZERO3,
             3,
+            {0, 1, 2},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -111,6 +118,7 @@ class TestGraspReward:
             obj_lifted,
             ZERO3,
             3,
+            {0, 1, 2},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -125,6 +133,7 @@ class TestGraspReward:
             obj_high,
             np.array([0.0, 0.0, 0.01]),
             5,
+            {0, 1, 2, 3, 4},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -135,6 +144,7 @@ class TestGraspReward:
             obj_high,
             np.array([1.0, 0.0, 0.0]),
             5,
+            {0, 1, 2, 3, 4},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -146,6 +156,7 @@ class TestGraspReward:
             obj_low,
             ZERO3,
             5,
+            {0, 1, 2, 3, 4},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -160,6 +171,7 @@ class TestGraspReward:
             obj_high,
             ZERO3,
             5,
+            {0, 1, 2, 3, 4},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -170,6 +182,7 @@ class TestGraspReward:
             obj_dropped,
             ZERO3,
             0,
+            set(),
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -183,6 +196,7 @@ class TestGraspReward:
             obj_low,
             ZERO3,
             0,
+            set(),
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -198,6 +212,7 @@ class TestGraspReward:
             obj,
             ZERO3,
             0,
+            set(),
             actions,
             ZERO_ACTIONS,
         )
@@ -214,6 +229,7 @@ class TestGraspReward:
             obj,
             ZERO3,
             0,
+            set(),
             actions,
             actions,
         )
@@ -223,11 +239,14 @@ class TestGraspReward:
         calc = self.make_calc()
         rng = np.random.default_rng(42)
         for _ in range(20):
+            n_contacts = int(rng.integers(0, 6))
+            contact_indices = set(rng.choice(5, size=n_contacts, replace=False)) if n_contacts > 0 else set()
             total, info = calc.compute(
                 finger_positions=rng.uniform(-1, 1, (5, 3)),
                 object_position=rng.uniform(-1, 1, 3),
                 object_linear_velocity=rng.uniform(-5, 5, 3),
-                num_fingers_in_contact=rng.integers(0, 6),
+                num_fingers_in_contact=n_contacts,
+                contact_finger_indices=contact_indices,
                 actions=rng.uniform(-1, 1, 20),
                 previous_actions=rng.uniform(-1, 1, 20),
             )

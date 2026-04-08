@@ -174,7 +174,7 @@ class ShadowHandGraspEnv(gym.Env):
             self.nm.obj_qvel_start,
         )
 
-        num_contacts, _ = get_finger_contacts(
+        num_contacts, contact_finger_indices = get_finger_contacts(
             self.model,
             self.data,
             self.nm.finger_geom_ids_per_finger,
@@ -186,6 +186,7 @@ class ShadowHandGraspEnv(gym.Env):
             object_position=obj_pos,
             object_linear_velocity=obj_linvel,
             num_fingers_in_contact=num_contacts,
+            contact_finger_indices=contact_finger_indices,
             actions=action.astype(np.float64),
             previous_actions=self._previous_actions,
         )
