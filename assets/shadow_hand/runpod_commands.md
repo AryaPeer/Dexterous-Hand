@@ -13,6 +13,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 cd ~
 git clone https://github.com/AryaPeer/Dexterous-Hand.git dexterous_hand
 cd dexterous_hand
+source $HOME/.local/bin/env
 uv sync
 ```
 
