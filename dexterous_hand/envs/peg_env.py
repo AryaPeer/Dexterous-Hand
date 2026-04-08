@@ -53,7 +53,7 @@ class ShadowHandPegEnv(gym.Env):
         # build scene and spaces
         self.model, self.data, self.nm = build_peg_scene(self.scene_config)
 
-        n_obs = 125  # 24+24+3+4+3+3+3+4+3+3+15+5+3+1+6+1+20
+        n_obs = 131  # 26+26+3+4+3+3+3+4+3+3+15+5+3+1+6+1+22
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_obs,), dtype=np.float64
         )
@@ -102,7 +102,7 @@ class ShadowHandPegEnv(gym.Env):
         @type seed: int | None
         @param options: unused
         @type options: dict[str, Any] | None
-        @return: (obs (125,), info with current stage)
+        @return: (obs (131,), info with current stage)
         @rtype: tuple[np.ndarray, dict[str, Any]]
         """
 
@@ -131,12 +131,8 @@ class ShadowHandPegEnv(gym.Env):
             self.data.qpos[s : s + 3] = palm_pos + np.array([0.0, 0.0, -0.03], dtype=np.float64)
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
         else:
-            peg_x, peg_y = 0.0, 0.0
-            for _ in range(32):
-                peg_x = float(self.np_random.uniform(-0.07, 0.07))
-                peg_y = float(self.np_random.uniform(-0.07, 0.07))
-                if float(np.hypot(peg_x, peg_y)) >= self.scene_config.spawn_min_radius:
-                    break
+            peg_x = float(self.np_random.uniform(-0.05, 0.05))
+            peg_y = float(self.np_random.uniform(-0.05, 0.05))
             peg_z = self.scene_config.table_height + self.reward_config.peg_half_length + 0.001
             self.data.qpos[s : s + 3] = [peg_x, peg_y, peg_z]
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
@@ -159,7 +155,7 @@ class ShadowHandPegEnv(gym.Env):
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         """Apply action, step physics, compute reward and task stage.
 
-        @param action: (20,) normalized joint commands [-1, 1]
+        @param action: (22,) normalized joint commands [-1, 1]
         @type action: np.ndarray
         @return: standard gym tuple (obs, reward, terminated, truncated, info)
         @rtype: tuple[np.ndarray, float, bool, bool, dict[str, Any]]
@@ -310,12 +306,12 @@ class ShadowHandPegEnv(gym.Env):
         return 0.0, {}
 
     def _get_obs(self) -> np.ndarray:
-        """Flat obs (125,) — joints, peg/hole state, contacts, prev actions."""
+        """Flat obs (131,) — joints, peg/hole state, contacts, prev actions."""
 
         nm = self.nm
 
-        joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]  # 24
-        joint_vel = self.data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]  # 24
+        joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]  # 26
+        joint_vel = self.data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]  # 26
 
         # use cached values from step() if available, otherwise recompute
         if hasattr(self, "_cached_obs") and self._cached_obs is not None:

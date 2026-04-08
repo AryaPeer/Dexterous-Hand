@@ -100,12 +100,43 @@ def build_peg_scene(
         xyaxes=[0.707, 0.707, 0.0, -0.354, 0.354, 0.866],
     )
 
-    mount = spec.worldbody.add_body(
-        name="hand_mount",
+    slider = spec.worldbody.add_body(
+        name="hand_slider",
         pos=[config.mount_x, config.mount_y, config.mount_height],
+    )
+    slider.add_joint(
+        name="slide_x", type=mujoco.mjtJoint.mjJNT_SLIDE,
+        axis=[1, 0, 0], range=[-0.15, 0.15],
+    )
+    slider.add_joint(
+        name="slide_y", type=mujoco.mjtJoint.mjJNT_SLIDE,
+        axis=[0, 1, 0], range=[-0.15, 0.15],
+    )
+
+    mount = slider.add_body(
+        name="hand_mount",
         euler=[math.pi, 0.0, 0.0],
     )
     mount_site = mount.add_site(name="hand_attach", pos=[0.0, 0.0, 0.0])
+
+    spec.add_actuator(
+        name="slide_x_act", target="slide_x",
+        trntype=mujoco.mjtTrn.mjTRN_JOINT,
+        gaintype=mujoco.mjtGain.mjGAIN_FIXED,
+        biastype=mujoco.mjtBias.mjBIAS_AFFINE,
+        gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
+        ctrlrange=[-0.15, 0.15],
+    )
+    spec.add_actuator(
+        name="slide_y_act", target="slide_y",
+        trntype=mujoco.mjtTrn.mjTRN_JOINT,
+        gaintype=mujoco.mjtGain.mjGAIN_FIXED,
+        biastype=mujoco.mjtBias.mjBIAS_AFFINE,
+        gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
+        ctrlrange=[-0.15, 0.15],
+    )
 
     hand_xml = str(ASSETS_DIR / "right_hand.xml")
     child_spec = mujoco.MjSpec.from_file(hand_xml)

@@ -38,7 +38,7 @@ class TactileFeatureExtractor(BaseFeaturesExtractor):
         self.tactile_encoder = TactileEncoder()
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        """(batch, 365) -> (batch, 157) proprio + encoded tactile."""
+        """(batch, 371) -> (batch, 163) proprio + encoded tactile."""
 
         proprio = observations[:, : self.proprio_dim]
 

@@ -46,23 +46,23 @@ class TestTactileEncoder:
 
 class TestTactileFeatureExtractor:
     def make_extractor(self):
-        obs_space = gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(365,), dtype=np.float32)
-        return TactileFeatureExtractor(obs_space, proprio_dim=125, tactile_dim=240)
+        obs_space = gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(371,), dtype=np.float32)
+        return TactileFeatureExtractor(obs_space, proprio_dim=131, tactile_dim=240)
 
     def test_output_shape(self):
         ext = self.make_extractor()
-        x = torch.randn(4, 365)
+        x = torch.randn(4, 371)
         out = ext(x)
 
-        assert out.shape == (4, 157)  # 125 proprio + 32 tactile
+        assert out.shape == (4, 163)  # 131 proprio + 32 tactile
 
     def test_features_dim(self):
         ext = self.make_extractor()
-        assert ext.features_dim == 157
+        assert ext.features_dim == 163
 
     def test_output_finite(self):
         ext = self.make_extractor()
-        x = torch.randn(8, 365)
+        x = torch.randn(8, 371)
         out = ext(x)
 
         assert torch.all(torch.isfinite(out))

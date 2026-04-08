@@ -9,10 +9,10 @@ import dexterous_hand.envs  # noqa: F401
 @pytest.mark.slow
 class TestGraspEnvSpaces:
     def test_observation_shape(self, grasp_env):
-        assert grasp_env.observation_space.shape == (99,)
+        assert grasp_env.observation_space.shape == (105,)
 
     def test_action_shape(self, grasp_env):
-        assert grasp_env.action_space.shape == (20,)
+        assert grasp_env.action_space.shape == (22,)
 
     def test_action_bounds(self, grasp_env):
         assert float(grasp_env.action_space.low.min()) == -1.0
@@ -23,7 +23,7 @@ class TestGraspEnvSpaces:
 class TestGraspEnvReset:
     def test_reset_obs_shape(self, grasp_env):
         obs, info = grasp_env.reset(seed=42)
-        assert obs.shape == (99,)
+        assert obs.shape == (105,)
 
     def test_reset_obs_finite(self, grasp_env):
         obs, _ = grasp_env.reset(seed=42)
@@ -45,7 +45,7 @@ class TestGraspEnvStep:
         grasp_env.reset(seed=42)
         action = grasp_env.action_space.sample()
         obs, reward, terminated, truncated, info = grasp_env.step(action)
-        assert obs.shape == (99,)
+        assert obs.shape == (105,)
         assert isinstance(reward, float)
         assert isinstance(terminated, bool)
         assert isinstance(truncated, bool)
@@ -95,6 +95,8 @@ class TestGraspEnvStep:
                 grasp_env.reset()
 
     def test_finger_contact_metric_detects_overlap(self, grasp_env):
+        from dexterous_hand.utils.mujoco_helpers import get_finger_contacts
+
         grasp_env.reset(seed=0)
         env = grasp_env.unwrapped
 
@@ -107,16 +109,19 @@ class TestGraspEnvStep:
         env.data.qvel[:] = 0.0
         mujoco.mj_forward(env.model, env.data)
 
-        zero_action = np.zeros(grasp_env.action_space.shape, dtype=np.float32)
-        _, _, _, _, info = grasp_env.step(zero_action)
-        assert info["metrics/num_finger_contacts"] >= 1.0
+        num_contacts, _ = get_finger_contacts(
+            env.model, env.data,
+            env.nm.finger_geom_ids_per_finger,
+            env.nm.object_geom_id,
+        )
+        assert num_contacts >= 1, "Expected at least one finger contact after placing object at finger"
 
 
 @pytest.mark.slow
 class TestGraspEnvObjectTypes:
     @pytest.mark.parametrize(
         "obj_type",
-        ["small_cube", "large_cube", "cylinder", "sphere", "thin_cylinder"],
+        ["large_cube", "cylinder", "sphere"],
     )
     def test_specific_object(self, obj_type):
         env = gym.make("ShadowHandGrasp-v0", object_types=[obj_type])

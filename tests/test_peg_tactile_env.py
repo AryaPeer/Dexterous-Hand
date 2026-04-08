@@ -7,10 +7,10 @@ import dexterous_hand.envs  # noqa: F401
 @pytest.mark.slow
 class TestPegTactileEnvSpaces:
     def test_observation_shape(self, peg_tactile_env):
-        assert peg_tactile_env.observation_space.shape == (365,)
+        assert peg_tactile_env.observation_space.shape == (371,)
 
     def test_action_shape(self, peg_tactile_env):
-        assert peg_tactile_env.action_space.shape == (20,)
+        assert peg_tactile_env.action_space.shape == (22,)
 
     def test_action_bounds(self, peg_tactile_env):
         assert float(peg_tactile_env.action_space.low.min()) == -1.0
@@ -21,7 +21,7 @@ class TestPegTactileEnvSpaces:
 class TestPegTactileEnvReset:
     def test_reset_obs_shape(self, peg_tactile_env):
         obs, _ = peg_tactile_env.reset(seed=42)
-        assert obs.shape == (365,)
+        assert obs.shape == (371,)
 
     def test_reset_obs_finite(self, peg_tactile_env):
         obs, _ = peg_tactile_env.reset(seed=42)
@@ -39,7 +39,7 @@ class TestPegTactileEnvStep:
         peg_tactile_env.reset(seed=42)
         action = peg_tactile_env.action_space.sample()
         obs, reward, terminated, truncated, info = peg_tactile_env.step(action)
-        assert obs.shape == (365,)
+        assert obs.shape == (371,)
         assert isinstance(reward, float)
         assert isinstance(terminated, bool)
         assert isinstance(truncated, bool)
@@ -85,12 +85,12 @@ class TestPegTactileEnvStep:
 class TestPegTactileObs:
     def test_tactile_slice_shape(self, peg_tactile_env):
         obs, _ = peg_tactile_env.reset(seed=42)
-        proprio = obs[:125]  # proprioceptive
-        tactile_current = obs[125:205]  # 80 current
-        tactile_prev = obs[205:285]  # 80 previous
-        tactile_change = obs[285:365]  # 80 change
+        proprio = obs[:131]  # proprioceptive
+        tactile_current = obs[131:211]  # 80 current
+        tactile_prev = obs[211:291]  # 80 previous
+        tactile_change = obs[291:371]  # 80 change
 
-        assert proprio.shape == (125,)
+        assert proprio.shape == (131,)
         assert tactile_current.shape == (80,)
         assert tactile_prev.shape == (80,)
         assert tactile_change.shape == (80,)
@@ -99,7 +99,7 @@ class TestPegTactileObs:
         peg_tactile_env.reset(seed=42)
         for _ in range(10):
             obs, _, term, trunc, _ = peg_tactile_env.step(peg_tactile_env.action_space.sample())
-            tactile_current = obs[125:205]
+            tactile_current = obs[131:211]
             assert np.all(tactile_current >= 0)
             if term or trunc:
                 peg_tactile_env.reset()

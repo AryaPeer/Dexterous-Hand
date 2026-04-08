@@ -3,9 +3,9 @@ from dataclasses import dataclass, field
 
 @dataclass
 class SceneConfig:
-    mount_x: float = 0.0
+    mount_x: float = -0.10
     mount_y: float = 0.0
-    mount_height: float = 0.80
+    mount_height: float = 0.82
     table_height: float = 0.4
     table_half_size: float = 0.25
     object_mass: float = 0.1
@@ -37,8 +37,8 @@ class RewardConfig:
 
 @dataclass
 class TrainConfig:
-    n_envs: int = 2048
-    total_timesteps: int = 50_000_000
+    n_envs: int = 256
+    total_timesteps: int = 150_000_000
     learning_rate: float = 3e-4
     batch_size: int = 4096
     n_steps_per_env: int = 128
@@ -94,11 +94,11 @@ class ReorientSceneConfig:
 
 @dataclass
 class ReorientTrainConfig:
-    n_envs: int = 4096
-    total_timesteps: int = 200_000_000
+    n_envs: int = 256
+    total_timesteps: int = 400_000_000
     learning_rate: float = 3e-4
-    batch_size: int = 8192
-    n_steps_per_env: int = 64
+    batch_size: int = 4096
+    n_steps_per_env: int = 128
     n_epochs: int = 5
     gamma: float = 0.998  # higher gamma bc reorientation needs longer horizon
     gae_lambda: float = 0.95
@@ -141,14 +141,14 @@ class PegRewardConfig:
 
 @dataclass
 class PegSceneConfig:
-    mount_x: float = 0.0
+    mount_x: float = -0.10
     mount_y: float = 0.0
-    mount_height: float = 0.80
+    mount_height: float = 0.82
     table_height: float = 0.4
     table_half_size: float = 0.25
     clearance: float = 0.004  # initial hole clearance in meters
     hole_depth: float = 0.05
-    hole_offset: list[float] = field(default_factory=lambda: [0.1, 0.0])  # XY offset from center
+    hole_offset: list[float] = field(default_factory=lambda: [0.0, 0.0])  # XY offset from center
     spawn_min_radius: float = 0.04
     peg_friction: tuple[float, float, float] = (1.0, 0.005, 0.001)
     action_smoothing_alpha: float = 0.2
@@ -160,7 +160,7 @@ class PegSceneConfig:
 class PegTrainConfig:
     """SAC config for peg-in-hole training."""
 
-    n_envs: int = 1024
+    n_envs: int = 256
     total_timesteps: int = 100_000_000
     learning_rate: float = 3e-4
     batch_size: int = 256
@@ -199,7 +199,7 @@ class TactileConfig:
 class TactileTrainConfig:
     """SAC config for tactile ablation study (can toggle tactile on/off)."""
 
-    n_envs: int = 1024
+    n_envs: int = 256
     total_timesteps: int = 100_000_000
     learning_rate: float = 3e-4
     batch_size: int = 256

@@ -56,7 +56,7 @@ class ShadowHandGraspEnv(gym.Env):
         # build scene and spaces
         self.model, self.data, self.nm = build_scene(self.scene_config)
 
-        n_obs = 99  # 24+24+3+4+3+3+3+15+20
+        n_obs = 105  # 26+26+3+4+3+3+3+15+22
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_obs,), dtype=np.float64
         )
@@ -102,7 +102,7 @@ class ShadowHandGraspEnv(gym.Env):
         @type seed: int | None
         @param options: unused
         @type options: dict[str, Any] | None
-        @return: (obs (99,), info with sampled object_type)
+        @return: (obs (105,), info with sampled object_type)
         @rtype: tuple[np.ndarray, dict[str, Any]]
         """
 
@@ -145,7 +145,7 @@ class ShadowHandGraspEnv(gym.Env):
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         """Apply action, step physics, compute reward.
 
-        @param action: (20,) normalized joint commands in [-1, 1]
+        @param action: (22,) normalized joint commands in [-1, 1]
         @type action: np.ndarray
         @return: standard gym tuple (obs, reward, terminated, truncated, info)
         @rtype: tuple[np.ndarray, float, bool, bool, dict[str, Any]]
@@ -210,7 +210,7 @@ class ShadowHandGraspEnv(gym.Env):
         return obs, float(reward), terminated, False, info
 
     def _get_obs(self) -> np.ndarray:
-        """Flat obs vector (99,) — joints, object state, fingertips, prev actions."""
+        """Flat obs vector (105,) — joints, object state, fingertips, prev actions."""
 
         nm = self.nm
 

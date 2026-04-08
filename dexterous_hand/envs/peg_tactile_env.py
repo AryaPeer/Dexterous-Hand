@@ -37,7 +37,7 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
 
         self.tactile_config = tactile_config or TactileConfig()
 
-        n_obs = 365
+        n_obs = 371
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_obs,), dtype=np.float64
         )
@@ -68,7 +68,7 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
         @type seed: int | None
         @param options: unused
         @type options: dict[str, Any] | None
-        @return: (obs (365,) proprio + tactile, info with current stage)
+        @return: (obs (371,) proprio + tactile, info with current stage)
         @rtype: tuple[np.ndarray, dict[str, Any]]
         """
 
@@ -146,7 +146,7 @@ class ShadowHandPegTactileEnv(ShadowHandPegEnv):
     def _get_obs(self) -> np.ndarray:
         """Proprio + tactile (current, previous, change)."""
 
-        base_obs = super()._get_obs()  # (125,)
+        base_obs = super()._get_obs()  # (131,)
 
         if hasattr(self, "_last_tactile") and self._last_tactile is not None:
             tactile_current, tactile_previous, tactile_change = self._last_tactile

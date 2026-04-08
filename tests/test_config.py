@@ -19,9 +19,9 @@ from dexterous_hand.config import (
 class TestConfigDefaults:
     def test_scene_config(self):
         c = SceneConfig()
-        assert c.mount_x == 0.0
+        assert c.mount_x == -0.10
         assert c.mount_y == 0.0
-        assert c.mount_height == 0.80
+        assert c.mount_height == 0.82
         assert c.sim_timestep == 0.002
         assert c.frame_skip == 20
 
@@ -38,7 +38,7 @@ class TestConfigDefaults:
 
     def test_train_config(self):
         c = TrainConfig()
-        assert c.n_envs == 2048
+        assert c.n_envs == 256
         assert c.seed == 42
         assert len(c.net_arch) == 3
 
@@ -62,9 +62,9 @@ class TestConfigDefaults:
 
     def test_peg_scene_config(self):
         c = PegSceneConfig()
-        assert c.mount_x == 0.0
+        assert c.mount_x == -0.10
         assert c.mount_y == 0.0
-        assert c.mount_height == 0.80
+        assert c.mount_height == 0.82
         assert c.action_smoothing_alpha == 0.2
         assert c.spawn_min_radius == 0.04
         assert c.clearance == 0.004

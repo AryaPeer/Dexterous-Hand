@@ -11,11 +11,9 @@ from dexterous_hand.utils.mujoco_helpers import get_joint_qpos_qvel_range
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "shadow_hand"
 
 OBJECT_TYPES: dict[str, tuple[int, list[float]]] = {
-    "small_cube": (mujoco.mjtGeom.mjGEOM_BOX, [0.02, 0.02, 0.02]),
     "large_cube": (mujoco.mjtGeom.mjGEOM_BOX, [0.035, 0.035, 0.035]),
     "cylinder": (mujoco.mjtGeom.mjGEOM_CYLINDER, [0.02, 0.04, 0.0]),
     "sphere": (mujoco.mjtGeom.mjGEOM_SPHERE, [0.03, 0.0, 0.0]),
-    "thin_cylinder": (mujoco.mjtGeom.mjGEOM_CYLINDER, [0.008, 0.06, 0.0]),
 }
 
 FINGERTIP_BODIES = [
@@ -124,14 +122,45 @@ def build_scene(
         xyaxes=[0.707, 0.707, 0.0, -0.354, 0.354, 0.866],
     )
 
-    mount = spec.worldbody.add_body(
-        name="hand_mount",
+    slider = spec.worldbody.add_body(
+        name="hand_slider",
         pos=[config.mount_x, config.mount_y, config.mount_height],
+    )
+    slider.add_joint(
+        name="slide_x", type=mujoco.mjtJoint.mjJNT_SLIDE,
+        axis=[1, 0, 0], range=[-0.15, 0.15],
+    )
+    slider.add_joint(
+        name="slide_y", type=mujoco.mjtJoint.mjJNT_SLIDE,
+        axis=[0, 1, 0], range=[-0.15, 0.15],
+    )
+
+    mount = slider.add_body(
+        name="hand_mount",
         euler=[math.pi, 0.0, 0.0],
     )
     mount_site = mount.add_site(
         name="hand_attach",
         pos=[0.0, 0.0, 0.0],
+    )
+
+    spec.add_actuator(
+        name="slide_x_act", target="slide_x",
+        trntype=mujoco.mjtTrn.mjTRN_JOINT,
+        gaintype=mujoco.mjtGain.mjGAIN_FIXED,
+        biastype=mujoco.mjtBias.mjBIAS_AFFINE,
+        gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
+        ctrlrange=[-0.15, 0.15],
+    )
+    spec.add_actuator(
+        name="slide_y_act", target="slide_y",
+        trntype=mujoco.mjtTrn.mjTRN_JOINT,
+        gaintype=mujoco.mjtGain.mjGAIN_FIXED,
+        biastype=mujoco.mjtBias.mjBIAS_AFFINE,
+        gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
+        ctrlrange=[-0.15, 0.15],
     )
 
     hand_xml = str(ASSETS_DIR / "right_hand.xml")
@@ -149,7 +178,7 @@ def build_scene(
             rgba=[1.0, 0.0, 0.0, 1.0],
         )
 
-    default_type, default_size = OBJECT_TYPES["small_cube"]
+    default_type, default_size = OBJECT_TYPES["large_cube"]
     obj_body = spec.worldbody.add_body(
         name="object",
         pos=[0.0, 0.0, config.table_height + default_size[2]],
