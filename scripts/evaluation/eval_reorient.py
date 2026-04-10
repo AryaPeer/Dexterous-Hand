@@ -31,7 +31,6 @@ def evaluate(
 
     total_targets = 0
     total_drops = 0
-    total_steps = 0
     angular_distances: list[float] = []
     steps_to_first_target: list[int] = []
 
@@ -43,7 +42,6 @@ def evaluate(
     for _ep in range(n_episodes):
         obs, info = env.reset()
         ep_targets = 0
-        ep_steps = 0
         first_target_step: int | None = None
         dropped = False
 
@@ -51,7 +49,6 @@ def evaluate(
             obs_norm = vec_env.normalize_obs(obs) if vec_env is not None else obs  # type: ignore[union-attr]
             action, _ = model.predict(obs_norm, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
-            ep_steps += 1
 
             # track target hits
             if info.get("targets_reached", 0) > ep_targets:
@@ -79,7 +76,6 @@ def evaluate(
         total_targets += ep_targets
         if dropped:
             total_drops += 1
-        total_steps += ep_steps
         if first_target_step is not None:
             steps_to_first_target.append(first_target_step)
 

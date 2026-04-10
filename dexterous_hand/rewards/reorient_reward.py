@@ -60,9 +60,9 @@ class ReorientRewardCalculator:
         @type finger_positions: np.ndarray
         @param num_fingers_in_contact: fingers touching the cube
         @type num_fingers_in_contact: int
-        @param actions: (20,) current actions
+        @param actions: (22,) current actions
         @type actions: np.ndarray
-        @param previous_actions: (20,) last step's actions
+        @param previous_actions: (22,) last step's actions
         @type previous_actions: np.ndarray
         @param dropped: True if cube fell
         @type dropped: bool

@@ -23,31 +23,6 @@ def get_joint_qpos_qvel_range(
     return qpos_start, qpos_end, qvel_start, qvel_end
 
 
-def get_fingertip_contacts(
-    model: mujoco.MjModel,
-    data: mujoco.MjData,
-    fingertip_geom_ids: set[int],
-    object_geom_id: int,
-) -> tuple[int, set[int]]:
-    """Which fingertips are touching the object.
-
-    @return: (count, contact_body_ids)
-    @rtype: tuple[int, set[int]]
-    """
-
-    contact_body_ids: set[int] = set()
-
-    for i in range(data.ncon):
-        contact = data.contact[i]
-        g1, g2 = contact.geom1, contact.geom2
-        if g1 in fingertip_geom_ids and g2 == object_geom_id:
-            contact_body_ids.add(model.geom_bodyid[g1])
-        elif g2 in fingertip_geom_ids and g1 == object_geom_id:
-            contact_body_ids.add(model.geom_bodyid[g2])
-
-    return len(contact_body_ids), contact_body_ids
-
-
 def get_fingertip_positions(
     data: mujoco.MjData,
     fingertip_site_ids: list[int],
@@ -84,25 +59,6 @@ def get_finger_contacts(
     return len(contact_finger_indices), contact_finger_indices
 
 
-def get_finger_positions(
-    data: mujoco.MjData,
-    finger_geom_ids_per_finger: list[set[int]],
-) -> np.ndarray:
-    """Per-finger representative positions (mean geom center), shape (5, 3)."""
-
-    finger_positions: list[np.ndarray] = []
-
-    for geom_ids in finger_geom_ids_per_finger:
-        if not geom_ids:
-            finger_positions.append(np.zeros(3, dtype=np.float64))
-            continue
-
-        geom_pos = data.geom_xpos[list(geom_ids)]
-        finger_positions.append(np.mean(geom_pos, axis=0))
-
-    return np.asarray(finger_positions, dtype=np.float64)
-
-
 def get_object_state(
     data: mujoco.MjData,
     object_body_id: int,
@@ -127,33 +83,6 @@ def get_palm_position(data: mujoco.MjData, palm_body_id: int) -> np.ndarray:
     """Palm world position."""
 
     return np.array(data.xpos[palm_body_id].copy())
-
-
-def get_geom_ids_for_bodies(
-    model: mujoco.MjModel,
-    body_names: list[str],
-) -> dict[str, list[int]]:
-    """Map body names -> their geom IDs.
-
-    @return: body name -> list of geom IDs
-    @rtype: dict[str, list[int]]
-    """
-
-    result: dict[str, list[int]] = {name: [] for name in body_names}
-    body_name_to_id = {}
-
-    for name in body_names:
-        bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
-        if bid >= 0:
-            body_name_to_id[name] = bid
-
-    id_to_name = {v: k for k, v in body_name_to_id.items()}
-    for geom_id in range(model.ngeom):
-        body_id = model.geom_bodyid[geom_id]
-        if body_id in id_to_name:
-            result[id_to_name[body_id]].append(geom_id)
-
-    return result
 
 
 def get_cube_face_contacts(
@@ -189,8 +118,6 @@ def get_cube_face_contacts(
         flags[face_idx] = 1.0
 
     return flags
-
-
 
 
 def get_contact_forces_on_body(

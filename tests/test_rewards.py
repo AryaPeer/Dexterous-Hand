@@ -18,7 +18,7 @@ def _fingertips_at(pos: np.ndarray) -> np.ndarray:
     return np.tile(pos, (5, 1))
 
 
-ZERO_ACTIONS = np.zeros(20)
+ZERO_ACTIONS = np.zeros(22)
 IDENTITY_QUAT = np.array([1.0, 0.0, 0.0, 0.0])
 ZERO3 = np.zeros(3)
 
@@ -209,7 +209,7 @@ class TestGraspReward:
 
     def test_action_penalty_negative(self):
         calc = self.make_calc()
-        actions = np.ones(20)
+        actions = np.ones(22)
         obj = np.array([0.0, 0.0, 0.5])
 
         _, info = calc.compute(
@@ -222,11 +222,11 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
         assert info["reward/action_penalty"] < 0.0
-        assert_allclose(info["reward/action_penalty"], -0.01 * 20.0)
+        assert_allclose(info["reward/action_penalty"], -0.01 * 22.0)
 
     def test_action_rate_zero_for_same_actions(self):
         calc = self.make_calc()
-        actions = np.ones(20) * 0.5
+        actions = np.ones(22) * 0.5
         obj = np.array([0.0, 0.0, 0.5])
 
         _, info = calc.compute(
@@ -530,7 +530,7 @@ class TestPegReward:
 
     def test_smoothness_zero_for_constant_actions(self):
         calc = self.make_calc()
-        actions = np.ones(20) * 0.3
+        actions = np.ones(22) * 0.3
 
         _, info = calc.compute(
             **self._default_kwargs(

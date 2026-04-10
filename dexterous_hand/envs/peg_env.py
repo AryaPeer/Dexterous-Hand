@@ -394,11 +394,6 @@ class ShadowHandPegEnv(gym.Env):
 
         return obs
 
-    def set_clearance(self, clearance: float) -> None:
-        """Set hole clearance (rebuilds scene on next reset)."""
-
-        self._clearance = clearance
-
     def set_curriculum_params(self, clearance: float, pre_grasped: bool) -> None:
         """Update curriculum settings (called by curriculum callback)."""
 

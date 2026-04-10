@@ -16,7 +16,6 @@ class TactileFeatureExtractor(BaseFeaturesExtractor):
         self,
         observation_space: gymnasium.spaces.Box,
         proprio_dim: int = 125,
-        tactile_dim: int = 240,
     ) -> None:
         """Split obs into proprio + tactile with CNN encoding.
 
@@ -24,8 +23,6 @@ class TactileFeatureExtractor(BaseFeaturesExtractor):
         @type observation_space: gymnasium.spaces.Box
         @param proprio_dim: proprioceptive dims
         @type proprio_dim: int
-        @param tactile_dim: tactile dims (current + prev + change)
-        @type tactile_dim: int
         """
 
         features_dim = proprio_dim + 32

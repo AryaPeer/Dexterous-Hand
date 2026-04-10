@@ -47,7 +47,7 @@ class TestTactileEncoder:
 class TestTactileFeatureExtractor:
     def make_extractor(self):
         obs_space = gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(371,), dtype=np.float32)
-        return TactileFeatureExtractor(obs_space, proprio_dim=131, tactile_dim=240)
+        return TactileFeatureExtractor(obs_space, proprio_dim=131)
 
     def test_output_shape(self):
         ext = self.make_extractor()

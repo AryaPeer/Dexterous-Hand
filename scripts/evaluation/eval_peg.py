@@ -38,7 +38,6 @@ def evaluate(
 
     successes = 0
     drops = 0
-    total_steps = 0
     contact_forces: list[float] = []
     insertion_times: list[int] = []
 
@@ -92,7 +91,6 @@ def evaluate(
                 insertion_times.append(ep_steps - insertion_start)
         if dropped:
             drops += 1
-        total_steps += ep_steps
 
         if record_video and episodes_recorded < max_video_episodes:
             episodes_recorded += 1

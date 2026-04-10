@@ -105,7 +105,6 @@ def train_variant(
         policy_kwargs["features_extractor_class"] = TactileFeatureExtractor
         policy_kwargs["features_extractor_kwargs"] = {
             "proprio_dim": 131,
-            "tactile_dim": 240,
         }
 
     model = SAC(

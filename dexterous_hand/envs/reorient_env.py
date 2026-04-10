@@ -9,9 +9,9 @@ from dexterous_hand.config import ReorientRewardConfig, ReorientSceneConfig
 from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
 from dexterous_hand.rewards.reorient_reward import ReorientRewardCalculator
 from dexterous_hand.utils.mujoco_helpers import (
+    get_cube_face_contacts,
     get_finger_contacts,
     get_fingertip_positions,
-    get_cube_face_contacts,
     get_object_state,
     get_palm_position,
 )
@@ -78,10 +78,8 @@ class ShadowHandReorientEnv(gym.Env):
         self._max_target_angle = 0.5236  # 30 deg, curriculum ramps this up
         self._targets_reached = 0
         self._init_qpos = self.data.qpos.copy()
-        self._init_qvel = self.data.qvel.copy()
         self._palm_z: float = 0.0
         self._grasp_site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site")
-        self.current_timestep: int = 0
 
         # rendering
         self._renderer: mujoco.Renderer | None = None

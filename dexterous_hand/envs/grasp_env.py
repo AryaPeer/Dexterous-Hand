@@ -75,7 +75,6 @@ class ShadowHandGraspEnv(gym.Env):
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._current_object_type: str = self._object_type_names[0]
         self._init_qpos = self.data.qpos.copy()
-        self._init_qvel = self.data.qvel.copy()
 
         for jname, bias in TABLE_TASK_FLEXION_BIAS.items():
             jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, jname)
