@@ -132,16 +132,16 @@ class ReorientTrainConfig:
 
 @dataclass
 class PegRewardWeights:
-    reach: float = 0.5
-    grasp: float = 3.0
-    lift: float = 3.0
+    reach: float = 0.4
+    grasp: float = 2.5
+    lift: float = 6.0
     align: float = 1.5
     depth: float = 2.0
     complete: float = 1.0
     force: float = 1.0
     drop: float = 1.0
-    smoothness: float = 2.0
-    action_magnitude: float = 1.0
+    smoothness: float = 1.5
+    action_magnitude: float = 1.5
     idle_stage0: float = 1.0
 
 

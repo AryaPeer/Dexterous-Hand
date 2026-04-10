@@ -441,26 +441,39 @@ class TestPegReward:
         }
         assert expected_keys == set(info.keys())
 
-    def test_reach_only_in_stage_0(self):
+    def test_reach_dampens_with_contacts(self):
         calc = self.make_calc()
-        _, info0 = calc.compute(**self._default_kwargs(stage=0))
-        _, info1 = calc.compute(**self._default_kwargs(stage=1))
-        assert info0["reward/reach"] > 0.0
-        assert_allclose(info1["reward/reach"], 0.0)
+        _, info_free = calc.compute(**self._default_kwargs(num_fingers_in_contact=0))
+        _, info_engaged = calc.compute(
+            **self._default_kwargs(num_fingers_in_contact=3, contact_finger_indices={0, 1, 2})
+        )
+        assert info_free["reward/reach"] > info_engaged["reward/reach"]
+        assert info_engaged["reward/reach"] > 0.0  # dampened, not zeroed
 
     def test_grasp_proportional(self):
         calc = self.make_calc()
-        _, info3 = calc.compute(**self._default_kwargs(num_fingers_in_contact=3, contact_finger_indices={0, 1, 2}))
+        _, info5 = calc.compute(
+            **self._default_kwargs(num_fingers_in_contact=5, contact_finger_indices={0, 1, 2, 3, 4})
+        )
         _, info1 = calc.compute(**self._default_kwargs(num_fingers_in_contact=1, contact_finger_indices={0}))
-        assert_allclose(info3["reward/grasp"], 1.0)
-        assert_allclose(info1["reward/grasp"], 1.0 / 3.0, rtol=1e-6)
+        assert_allclose(info5["reward/grasp"], 1.0)
+        assert_allclose(info1["reward/grasp"], 0.2, rtol=1e-6)
 
     def test_lift_scales_with_height(self):
         calc = self.make_calc()
-        _, info_low = calc.compute(**self._default_kwargs(peg_height=0.4))
-        _, info_high = calc.compute(**self._default_kwargs(peg_height=0.5))
+        _, info_low = calc.compute(
+            **self._default_kwargs(peg_height=0.4, num_fingers_in_contact=2, contact_finger_indices={0, 1})
+        )
+        _, info_high = calc.compute(
+            **self._default_kwargs(peg_height=0.5, num_fingers_in_contact=2, contact_finger_indices={0, 1})
+        )
         assert_allclose(info_low["reward/lift"], 0.0)
         assert_allclose(info_high["reward/lift"], 1.0)
+
+    def test_lift_requires_contact(self):
+        calc = self.make_calc()
+        _, info = calc.compute(**self._default_kwargs(peg_height=0.5, num_fingers_in_contact=0))
+        assert_allclose(info["reward/lift"], 0.0)
 
     def test_insertion_depth_reward(self):
         calc = self.make_calc()
@@ -518,15 +531,42 @@ class TestPegReward:
     def test_drop_penalty(self):
         calc = self.make_calc()
 
-        calc.compute(**self._default_kwargs(num_fingers_in_contact=3))
+        # lift clearly above target to flip _was_lifted
+        calc.compute(
+            **self._default_kwargs(
+                peg_height=self.TABLE_HEIGHT + 0.15,
+                num_fingers_in_contact=3,
+                contact_finger_indices={0, 1, 2},
+            )
+        )
 
         _, info = calc.compute(
             **self._default_kwargs(
-                peg_height=self.TABLE_HEIGHT - 0.03,
+                peg_height=self.TABLE_HEIGHT,
                 num_fingers_in_contact=0,
             )
         )
         assert_allclose(info["reward/drop"], -10.0)
+
+    def test_drop_penalty_requires_real_lift(self):
+        calc = self.make_calc()
+
+        # momentary contact without reaching lift_target
+        calc.compute(
+            **self._default_kwargs(
+                peg_height=self.TABLE_HEIGHT + 0.02,
+                num_fingers_in_contact=3,
+                contact_finger_indices={0, 1, 2},
+            )
+        )
+
+        _, info = calc.compute(
+            **self._default_kwargs(
+                peg_height=self.TABLE_HEIGHT - 0.05,
+                num_fingers_in_contact=0,
+            )
+        )
+        assert_allclose(info["reward/drop"], 0.0)
 
     def test_smoothness_zero_for_constant_actions(self):
         calc = self.make_calc()

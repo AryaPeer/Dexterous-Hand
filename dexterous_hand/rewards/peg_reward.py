@@ -22,20 +22,21 @@ class PegRewardCalculator:
 
         self.weights = config.weights
         self.peg_length = peg_half_length * 2.0
+        self.lift_target = 0.1
         self.drop_penalty_value = config.drop_penalty
         self.complete_bonus = config.complete_bonus
         self.force_threshold = config.force_threshold
         self.idle_stage0_penalty = config.idle_stage0_penalty
         self.min_contacts_for_align = config.min_contacts_for_align
         self.table_height = table_height
-        self._was_grasped = False
+        self._was_lifted = False
         self._insertion_hold_steps = 0
         self._initial_peg_height = table_height
 
     def reset(self, initial_peg_height: float | None = None) -> None:
         """Reset for a new episode."""
 
-        self._was_grasped = False
+        self._was_lifted = False
         self._insertion_hold_steps = 0
         if initial_peg_height is None:
             self._initial_peg_height = self.table_height
@@ -92,14 +93,9 @@ class PegRewardCalculator:
 
         info: dict[str, float] = {}
 
-        if num_fingers_in_contact >= 3:
-            self._was_grasped = True
-
-        if stage == 0:
-            dists = np.linalg.norm(finger_positions - peg_position, axis=1)
-            reach = float(np.exp(-10.0 * np.mean(dists)))
-        else:
-            reach = 0.0
+        dists = np.linalg.norm(finger_positions - peg_position, axis=1)
+        contact_factor = min(num_fingers_in_contact / 2.0, 1.0)
+        reach = float(np.exp(-10.0 * np.mean(dists))) * (1.0 - 0.5 * contact_factor)
         info["reward/reach"] = reach
 
         side_contacts = 0
@@ -109,12 +105,16 @@ class PegRewardCalculator:
         side_ratio = side_contacts / max(num_fingers_in_contact, 1)
         info["reward/grasp_quality"] = side_ratio
 
-        grasp = min(num_fingers_in_contact / 3.0, 1.0) * (0.3 + 0.7 * side_ratio)
+        grasp = (num_fingers_in_contact / 5.0) * (0.3 + 0.7 * side_ratio)
         info["reward/grasp"] = grasp
 
+        lift_hold_gate = 1.0 if num_fingers_in_contact >= 2 else 0.0
         lift_height = max(peg_height - self._initial_peg_height, 0.0)
-        lift = float(np.clip(lift_height, 0.0, 0.1) / 0.1)
+        lift = float(np.clip(lift_height, 0.0, self.lift_target) / self.lift_target) * lift_hold_gate
         info["reward/lift"] = lift
+
+        if lift_height >= self.lift_target:
+            self._was_lifted = True
 
         lateral_dist = float(np.linalg.norm(peg_position[:2] - hole_position[:2]))
         raw_align = float(np.dot(peg_axis, hole_axis)) * float(np.exp(-20.0 * lateral_dist))
@@ -145,14 +145,14 @@ class PegRewardCalculator:
         force_penalty = -0.01 * force_excess**2
         info["reward/force_penalty"] = force_penalty
 
-        dropped = self._was_grasped and peg_height < self._initial_peg_height - 0.02
+        dropped = self._was_lifted and lift_height < 0.01
         drop = self.drop_penalty_value if dropped else 0.0
         info["reward/drop"] = drop
 
-        smoothness = -0.002 * float(np.sum((actions - previous_actions) ** 2))
+        smoothness = -0.005 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/smoothness"] = smoothness
 
-        action_mag_raw = -0.002 * float(np.sum(actions**2))
+        action_mag_raw = -0.01 * float(np.sum(actions**2))
         action_magnitude_penalty = self.weights.action_magnitude * action_mag_raw
         info["reward/action_magnitude_penalty"] = action_magnitude_penalty
 
