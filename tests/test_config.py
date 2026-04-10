@@ -41,6 +41,8 @@ class TestConfigDefaults:
         assert c.n_envs == 256
         assert c.seed == 42
         assert len(c.net_arch) == 3
+        assert isinstance(c.scene_config, SceneConfig)
+        assert isinstance(c.reward_config, RewardConfig)
 
     def test_reorient_scene_config(self):
         c = ReorientSceneConfig()
@@ -59,6 +61,10 @@ class TestConfigDefaults:
         c = ReorientTrainConfig()
         assert c.gamma == 0.998
         assert c.ent_coef == 0.002
+        assert isinstance(c.scene_config, ReorientSceneConfig)
+        assert isinstance(c.reward_config, ReorientRewardConfig)
+        assert c.curriculum_reference_timesteps == 400_000_000
+        assert len(c.curriculum_stages) == 4
 
     def test_peg_scene_config(self):
         c = PegSceneConfig()
@@ -80,6 +86,9 @@ class TestConfigDefaults:
     def test_peg_train_config(self):
         c = PegTrainConfig()
         assert c.ent_coef == "auto"
+        assert isinstance(c.scene_config, PegSceneConfig)
+        assert isinstance(c.reward_config, PegRewardConfig)
+        assert c.curriculum_reference_timesteps == 100_000_000
         assert len(c.curriculum_stages) == 4
 
     def test_tactile_config(self):
@@ -90,7 +99,10 @@ class TestConfigDefaults:
 
     def test_tactile_train_config(self):
         c = TactileTrainConfig()
-        assert c.use_tactile is True
+        assert isinstance(c.scene_config, PegSceneConfig)
+        assert isinstance(c.reward_config, PegRewardConfig)
+        assert c.curriculum_reference_timesteps == 100_000_000
+        assert len(c.curriculum_stages) == 4
         assert isinstance(c.tactile_config, TactileConfig)
 
     def test_all_configs_instantiate(self):

@@ -1,7 +1,7 @@
 import argparse
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import asdict
-import math
 from pathlib import Path
 
 import gymnasium as gym
@@ -13,15 +13,11 @@ import wandb
 from wandb.integration.sb3 import WandbCallback
 
 from dexterous_hand.config import ReorientTrainConfig
-from dexterous_hand.curriculum.callbacks import ReorientCurriculumCallback
+from dexterous_hand.curriculum.callbacks import (
+    ReorientCurriculumCallback,
+    scale_stage_starts,
+)
 import dexterous_hand.envs  # noqa: F401
-
-CURRICULUM_STAGES: list[tuple[int, float]] = [
-    (0, math.radians(30)),
-    (20_000_000, math.radians(90)),
-    (60_000_000, math.radians(180)),
-    (120_000_000, math.pi),
-]
 
 
 class VecNormSyncEvalCallback(EvalCallback):
@@ -33,10 +29,14 @@ class VecNormSyncEvalCallback(EvalCallback):
         return super()._on_step()
 
 
-def make_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
+def make_env(rank: int, seed: int, config: ReorientTrainConfig) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
-        import dexterous_hand.envs  # noqa: F401 — register in subprocess
-        env = gym.make("ShadowHandReorient-v0")
+        import dexterous_hand.envs  # noqa: F401,F811 - register in subprocess
+        env = gym.make(
+            "ShadowHandReorient-v0",
+            scene_config=deepcopy(config.scene_config),
+            reward_config=deepcopy(config.reward_config),
+        )
         env.reset(seed=seed + rank)
         return env
 
@@ -54,14 +54,22 @@ def train(config: ReorientTrainConfig) -> None:
         config.batch_size = rollout_size
         print(f"Clamped batch_size to {config.batch_size} (n_envs * n_steps_per_env)")
 
+    curriculum_stages = scale_stage_starts(
+        stages=config.curriculum_stages,
+        total_timesteps=config.total_timesteps,
+        reference_total_timesteps=config.curriculum_reference_timesteps,
+    )
+
+    wandb_config = asdict(config)
+    wandb_config["effective_curriculum_stages"] = curriculum_stages
     wandb.init(
         project="dexterous-hand",
         name=f"reorient-{config.n_envs}env",
-        config=asdict(config),
+        config=wandb_config,
     )
 
     # environments
-    env_fns = [make_env(i, config.seed) for i in range(config.n_envs)]
+    env_fns = [make_env(i, config.seed, config) for i in range(config.n_envs)]
     vec_env = SubprocVecEnv(env_fns) if config.n_envs > 1 else DummyVecEnv(env_fns)
 
     if config.norm_obs or config.norm_reward:
@@ -72,7 +80,7 @@ def train(config: ReorientTrainConfig) -> None:
             clip_obs=10.0,
         )
 
-    eval_env = DummyVecEnv([make_env(0, config.seed + 10000)])
+    eval_env = DummyVecEnv([make_env(0, config.seed + 10000, config)])
     if config.norm_obs or config.norm_reward:
         eval_env = VecNormalize(  # type: ignore[assignment]
             eval_env,
@@ -111,7 +119,7 @@ def train(config: ReorientTrainConfig) -> None:
 
     # callbacks
     callbacks = [
-        ReorientCurriculumCallback(stages=CURRICULUM_STAGES, verbose=1),
+        ReorientCurriculumCallback(stages=curriculum_stages, verbose=1),
         VecNormSyncEvalCallback(
             eval_env,
             best_model_save_path=str(run_dir / "best"),

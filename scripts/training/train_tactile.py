@@ -1,5 +1,6 @@
 import argparse
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 
@@ -11,27 +12,31 @@ import torch
 import wandb
 from wandb.integration.sb3 import WandbCallback
 
-from dexterous_hand.config import PegSceneConfig, TactileTrainConfig
+from dexterous_hand.config import TactileTrainConfig
+from dexterous_hand.curriculum.callbacks import (
+    AssemblyCurriculumCallback,
+    scale_stage_starts,
+)
 import dexterous_hand.envs  # noqa: F401
 from dexterous_hand.tactile.feature_extractor import TactileFeatureExtractor
 
 
-def make_tactile_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
+def make_env(
+    env_id: str,
+    rank: int,
+    seed: int,
+    config: TactileTrainConfig,
+) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
-        import dexterous_hand.envs  # noqa: F401 — register in subprocess
-        scene_config = PegSceneConfig(clearance=0.001)
-        env = gym.make("ShadowHandPegTactile-v0", scene_config=scene_config)
-        env.reset(seed=seed + rank)
-        return env
+        import dexterous_hand.envs  # noqa: F401,F811 - register in subprocess
+        kwargs = {
+            "scene_config": deepcopy(config.scene_config),
+            "reward_config": deepcopy(config.reward_config),
+        }
+        if env_id == "ShadowHandPegTactile-v0":
+            kwargs["tactile_config"] = deepcopy(config.tactile_config)
 
-    return _init
-
-
-def make_baseline_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
-    def _init() -> gym.Env:  # type: ignore[type-arg]
-        import dexterous_hand.envs  # noqa: F401 — register in subprocess
-        scene_config = PegSceneConfig(clearance=0.001)
-        env = gym.make("ShadowHandPeg-v0", scene_config=scene_config)
+        env = gym.make(env_id, **kwargs)
         env.reset(seed=seed + rank)
         return env
 
@@ -46,18 +51,27 @@ def train_variant(
     """Train one variant (tactile or baseline)."""
 
     use_tactile = variant == "tactile"
+    env_id = "ShadowHandPegTactile-v0" if use_tactile else "ShadowHandPeg-v0"
     variant_dir = run_dir / variant
     variant_dir.mkdir(parents=True, exist_ok=True)
 
+    curriculum_stages = scale_stage_starts(
+        stages=config.curriculum_stages,
+        total_timesteps=config.total_timesteps,
+        reference_total_timesteps=config.curriculum_reference_timesteps,
+    )
+
+    wandb_config = asdict(config)
+    wandb_config["variant"] = variant
+    wandb_config["effective_curriculum_stages"] = curriculum_stages
     wandb.init(
         project="dexterous-hand",
         name=f"tactile-{variant}-{config.n_envs}env",
-        config={**asdict(config), "variant": variant},
+        config=wandb_config,
         reinit=True,
     )
 
-    make_fn = make_tactile_env if use_tactile else make_baseline_env
-    env_fns = [make_fn(i, config.seed) for i in range(config.n_envs)]
+    env_fns = [make_env(env_id, i, config.seed, config) for i in range(config.n_envs)]
     vec_env = SubprocVecEnv(env_fns) if config.n_envs > 1 else DummyVecEnv(env_fns)
 
     if config.norm_obs or config.norm_reward:
@@ -68,7 +82,7 @@ def train_variant(
             clip_obs=10.0,
         )
 
-    eval_fns = [make_fn(0, config.seed + 10000)]
+    eval_fns = [make_env(env_id, 0, config.seed + 10000, config)]
     eval_env = DummyVecEnv(eval_fns)
     if config.norm_obs or config.norm_reward:
         eval_env = VecNormalize(  # type: ignore[assignment]
@@ -83,7 +97,7 @@ def train_variant(
         config.activation
     ]
 
-    policy_kwargs: dict = {
+    policy_kwargs: dict[str, object] = {
         "net_arch": dict(pi=config.net_arch.copy(), qf=config.net_arch.copy()),
         "activation_fn": activation_fn,
     }
@@ -113,6 +127,7 @@ def train_variant(
     )
 
     callbacks = [
+        AssemblyCurriculumCallback(stages=curriculum_stages, verbose=1),
         EvalCallback(
             eval_env,
             best_model_save_path=str(variant_dir / "best"),

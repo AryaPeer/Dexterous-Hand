@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import math
 
 
 @dataclass
@@ -55,6 +56,8 @@ class TrainConfig:
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
+    scene_config: SceneConfig = field(default_factory=SceneConfig)
+    reward_config: RewardConfig = field(default_factory=RewardConfig)
 
 
 @dataclass
@@ -114,6 +117,17 @@ class ReorientTrainConfig:
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
+    scene_config: ReorientSceneConfig = field(default_factory=ReorientSceneConfig)
+    reward_config: ReorientRewardConfig = field(default_factory=ReorientRewardConfig)
+    curriculum_reference_timesteps: int = 400_000_000
+    curriculum_stages: list[tuple[int, float]] = field(
+        default_factory=lambda: [
+            (0, math.radians(30)),
+            (20_000_000, math.radians(90)),
+            (60_000_000, math.radians(180)),
+            (120_000_000, math.pi),
+        ]
+    )
 
 
 @dataclass
@@ -181,6 +195,9 @@ class PegTrainConfig:
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
+    scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
+    reward_config: PegRewardConfig = field(default_factory=PegRewardConfig)
+    curriculum_reference_timesteps: int = 100_000_000
     curriculum_stages: list[tuple[int, float, bool]] = field(
         default_factory=lambda: [
             (0, 0.004, True),  # start easy: 4mm clearance, peg already in hand
@@ -202,7 +219,7 @@ class TactileConfig:
 
 @dataclass
 class TactileTrainConfig:
-    """SAC config for tactile ablation study (can toggle tactile on/off)."""
+    """SAC config shared by tactile and baseline variants in the ablation study."""
 
     n_envs: int = 256
     total_timesteps: int = 100_000_000
@@ -220,5 +237,15 @@ class TactileTrainConfig:
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
-    use_tactile: bool = True  # flip to False for the no-tactile baseline
+    scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
+    reward_config: PegRewardConfig = field(default_factory=PegRewardConfig)
+    curriculum_reference_timesteps: int = 100_000_000
+    curriculum_stages: list[tuple[int, float, bool]] = field(
+        default_factory=lambda: [
+            (0, 0.004, True),
+            (25_000_000, 0.004, False),
+            (50_000_000, 0.002, False),
+            (75_000_000, 0.001, False),
+        ]
+    )
     tactile_config: TactileConfig = field(default_factory=TactileConfig)

@@ -1,5 +1,6 @@
 import argparse
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 
@@ -12,13 +13,17 @@ import wandb
 from wandb.integration.sb3 import WandbCallback
 
 from dexterous_hand.config import TrainConfig
-import dexterous_hand.envs  # noqa: F401 — triggers registration
+import dexterous_hand.envs  # noqa: F401 - triggers registration
 
 
-def make_env(rank: int, seed: int) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
+def make_env(rank: int, seed: int, config: TrainConfig) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
-        import dexterous_hand.envs  # noqa: F401 — register in subprocess
-        env = gym.make("ShadowHandGrasp-v0")
+        import dexterous_hand.envs  # noqa: F401,F811 - register in subprocess
+        env = gym.make(
+            "ShadowHandGrasp-v0",
+            scene_config=deepcopy(config.scene_config),
+            reward_config=deepcopy(config.reward_config),
+        )
         env.reset(seed=seed + rank)
         return env
 
@@ -43,7 +48,7 @@ def train(config: TrainConfig) -> None:
     )
 
     # environments
-    env_fns = [make_env(i, config.seed) for i in range(config.n_envs)]
+    env_fns = [make_env(i, config.seed, config) for i in range(config.n_envs)]
     vec_env = SubprocVecEnv(env_fns) if config.n_envs > 1 else DummyVecEnv(env_fns)
 
     if config.norm_obs or config.norm_reward:
@@ -54,7 +59,7 @@ def train(config: TrainConfig) -> None:
             clip_obs=10.0,
         )
 
-    eval_env = DummyVecEnv([make_env(0, config.seed + 10000)])
+    eval_env = DummyVecEnv([make_env(0, config.seed + 10000, config)])
     if config.norm_obs or config.norm_reward:
         eval_env = VecNormalize(  # type: ignore[assignment]
             eval_env,
