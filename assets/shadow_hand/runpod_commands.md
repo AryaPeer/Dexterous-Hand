@@ -25,17 +25,20 @@ tmux new-session -s train
 
 ```bash
 cd ~/dexterous_hand
-export OPENBLAS_NUM_THREADS=32
+export OPENBLAS_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
 export WANDB_MODE=disabled
 ```
 
 Other tasks:
 
 ```bash
-uv run python main.py train --n-envs 256 --total-timesteps 150000000
-uv run python main.py train-reorient --n-envs 256 --total-timesteps 400000000
-uv run python main.py train-peg --n-envs 256 --total-timesteps 150000000
-uv run python main.py train-tactile --n-envs 256 --total-timesteps 150000000
+uv run python main.py train --n-envs 32 --total-timesteps 30000000
+uv run python main.py train-reorient --n-envs 32 --total-timesteps 200000000
+uv run python main.py train-peg --n-envs 32 --total-timesteps 100000000
+uv run python main.py train-tactile --n-envs 32 --total-timesteps 120000000 --variant both
+uv run python main.py train-tactile --n-envs 32 --total-timesteps 120000000 --variant tactile
 ```
 
 In a new terminal, start a persistent watcher session that copies the full local `runs` content into `/workspace/runs/` (overwriting only matching files/folders) and then stops the pod:
