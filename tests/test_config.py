@@ -76,6 +76,9 @@ class TestConfigDefaults:
         assert c.clearance == 0.004
         assert c.hole_depth == 0.05
         assert len(c.hole_offset) == 2
+        assert c.peg_radius == 0.008
+        assert c.peg_half_length == 0.03
+        assert c.peg_mass == 0.02
 
     def test_peg_reward_config(self):
         c = PegRewardConfig()

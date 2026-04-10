@@ -8,6 +8,7 @@ class PegRewardCalculator:
         self,
         config: PegRewardConfig,
         table_height: float,
+        peg_half_length: float,
     ) -> None:
         """Peg insertion reward calculator.
 
@@ -15,10 +16,12 @@ class PegRewardCalculator:
         @type config: PegRewardConfig
         @param table_height: table surface height for lift calculations
         @type table_height: float
+        @param peg_half_length: half-length of the peg along its long axis
+        @type peg_half_length: float
         """
 
         self.weights = config.weights
-        self.peg_length = config.peg_half_length * 2.0
+        self.peg_length = peg_half_length * 2.0
         self.drop_penalty_value = config.drop_penalty
         self.complete_bonus = config.complete_bonus
         self.force_threshold = config.force_threshold

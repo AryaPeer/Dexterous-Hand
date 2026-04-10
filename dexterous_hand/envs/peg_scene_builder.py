@@ -153,8 +153,6 @@ def build_peg_scene(
             rgba=[1.0, 0.0, 0.0, 1.0],
         )
 
-    peg_radius = 0.008
-    peg_half_length = 0.03
     contact_kwargs = dict(
         contype=1,
         conaffinity=1,
@@ -164,7 +162,7 @@ def build_peg_scene(
         solimp=[0.9, 0.95, 0.001, 0.5, 2.0],
     )
 
-    peg_z = config.table_height + peg_half_length + 0.001
+    peg_z = config.table_height + config.peg_half_length + 0.001
     peg_body = spec.worldbody.add_body(
         name="peg",
         pos=[0.0, 0.0, peg_z],
@@ -173,8 +171,8 @@ def build_peg_scene(
     peg_body.add_geom(
         name="peg_geom",
         type=mujoco.mjtGeom.mjGEOM_CYLINDER,
-        size=[peg_radius, peg_half_length, 0.0],
-        mass=0.02,
+        size=[config.peg_radius, config.peg_half_length, 0.0],
+        mass=config.peg_mass,
         friction=list(config.peg_friction),
         rgba=[0.8, 0.2, 0.2, 1.0],
         **contact_kwargs,
@@ -188,7 +186,7 @@ def build_peg_scene(
         pos=[hole_x, hole_y, hole_z],
     )
 
-    cr = peg_radius + config.clearance
+    cr = config.peg_radius + config.clearance
     wt = 0.005
     wh = config.hole_depth / 2
 

@@ -1,7 +1,12 @@
 import numpy as np
 from numpy.testing import assert_allclose
 
-from dexterous_hand.config import PegRewardConfig, ReorientRewardConfig, RewardConfig
+from dexterous_hand.config import (
+    PegRewardConfig,
+    PegSceneConfig,
+    ReorientRewardConfig,
+    RewardConfig,
+)
 from dexterous_hand.rewards.grasp_reward import GraspRewardCalculator
 from dexterous_hand.rewards.peg_reward import PegRewardCalculator
 from dexterous_hand.rewards.reorient_reward import ReorientRewardCalculator
@@ -383,7 +388,11 @@ class TestPegReward:
     TABLE_HEIGHT = 0.4
 
     def make_calc(self) -> PegRewardCalculator:
-        return PegRewardCalculator(PegRewardConfig(), table_height=self.TABLE_HEIGHT)
+        return PegRewardCalculator(
+            PegRewardConfig(),
+            table_height=self.TABLE_HEIGHT,
+            peg_half_length=PegSceneConfig().peg_half_length,
+        )
 
     def _default_kwargs(self, **overrides) -> dict:
         defaults = dict(
@@ -455,7 +464,7 @@ class TestPegReward:
 
     def test_insertion_depth_reward(self):
         calc = self.make_calc()
-        peg_length = PegRewardConfig().peg_half_length * 2.0  # 0.06
+        peg_length = PegSceneConfig().peg_half_length * 2.0  # 0.06
         hole_pos = np.array([0.0, 0.0, 0.45])
         peg_pos = np.array([0.0, 0.0, 0.45])  # lateral_dist = 0
         _, info = calc.compute(
@@ -472,7 +481,7 @@ class TestPegReward:
 
     def test_insertion_depth_gated_by_lateral(self):
         calc = self.make_calc()
-        peg_length = PegRewardConfig().peg_half_length * 2.0
+        peg_length = PegSceneConfig().peg_half_length * 2.0
         peg_pos = np.array([0.0, 0.0, 0.45])
         hole_pos = np.array([0.01, 0.0, 0.45])  # 10mm lateral
         _, info = calc.compute(
@@ -486,7 +495,7 @@ class TestPegReward:
 
     def test_completion_bonus_after_hold(self):
         calc = self.make_calc()
-        peg_length = PegRewardConfig().peg_half_length * 2.0
+        peg_length = PegSceneConfig().peg_half_length * 2.0
         kwargs = self._default_kwargs(
             insertion_depth=peg_length * 0.95,  # > 90%
             peg_position=np.array([0.0, 0.0, 0.45]),

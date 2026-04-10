@@ -148,9 +148,6 @@ class PegRewardWeights:
 @dataclass
 class PegRewardConfig:
     weights: PegRewardWeights = field(default_factory=PegRewardWeights)
-    peg_radius: float = 0.008
-    peg_half_length: float = 0.03
-    peg_mass: float = 0.02
     drop_penalty: float = -10.0
     complete_bonus: float = 50.0
     force_threshold: float = 5.0  # penalize contact forces above this (Newtons)
@@ -169,6 +166,9 @@ class PegSceneConfig:
     hole_depth: float = 0.05
     hole_offset: list[float] = field(default_factory=lambda: [0.0, 0.0])  # XY offset from center
     spawn_min_radius: float = 0.04
+    peg_radius: float = 0.008
+    peg_half_length: float = 0.03
+    peg_mass: float = 0.02
     peg_friction: tuple[float, float, float] = (1.0, 0.005, 0.001)
     action_smoothing_alpha: float = 0.2
     sim_timestep: float = 0.002

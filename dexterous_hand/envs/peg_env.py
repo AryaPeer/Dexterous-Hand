@@ -65,6 +65,7 @@ class ShadowHandPegEnv(gym.Env):
         self.reward_calculator = PegRewardCalculator(
             config=self.reward_config,
             table_height=self.scene_config.table_height,
+            peg_half_length=self.scene_config.peg_half_length,
         )
 
         # state tracking
@@ -139,7 +140,7 @@ class ShadowHandPegEnv(gym.Env):
                 peg_y = float(self.np_random.uniform(-0.05, 0.05))
                 if np.linalg.norm([peg_x - hole_xy[0], peg_y - hole_xy[1]]) >= min_r:
                     break
-            peg_z = self.scene_config.table_height + self.reward_config.peg_half_length + 0.001
+            peg_z = self.scene_config.table_height + self.scene_config.peg_half_length + 0.001
             self.data.qpos[s : s + 3] = [peg_x, peg_y, peg_z]
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
 
@@ -204,7 +205,7 @@ class ShadowHandPegEnv(gym.Env):
         hole_pos = self.data.xpos[nm.hole_body_id].copy()
 
         # insertion + contact forces
-        peg_half_length = self.reward_config.peg_half_length
+        peg_half_length = self.scene_config.peg_half_length
 
         insertion_depth = get_insertion_depth(
             self.data, nm.peg_body_id, nm.hole_body_id, peg_half_length
@@ -360,7 +361,7 @@ class ShadowHandPegEnv(gym.Env):
                 self.data,
                 nm.peg_body_id,
                 nm.hole_body_id,
-                self.reward_config.peg_half_length,
+                self.scene_config.peg_half_length,
             )
 
             per_wall_forces, contact_force_mag = get_contact_forces(
