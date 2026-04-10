@@ -235,6 +235,18 @@ class TestGraspReward:
         )
         assert_allclose(info["reward/action_rate_penalty"], 0.0)
 
+    def test_sphere_skips_side_contact_penalty(self):
+        calc = self.make_calc()
+        calc.reset(initial_object_height=0.5, is_sphere=True)
+        obj = np.array([0.0, 0.0, 0.5])
+        # fingers well above obj center — would be penalized for cubes
+        high_fingers = np.tile(np.array([0.0, 0.0, 0.53]), (5, 1))
+        _, info = calc.compute(
+            high_fingers, obj, ZERO3, 5, {0, 1, 2, 3, 4}, ZERO_ACTIONS, ZERO_ACTIONS,
+        )
+        assert_allclose(info["reward/grasp_quality"], 1.0)
+        assert_allclose(info["reward/grasping"], 1.0)
+
     def test_reward_is_finite(self):
         calc = self.make_calc()
         rng = np.random.default_rng(42)

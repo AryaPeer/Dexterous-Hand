@@ -135,7 +135,8 @@ class ShadowHandGraspEnv(gym.Env):
 
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
-        self.reward_calculator.reset(initial_object_height=obj_z)
+        is_sphere = geom_type == mujoco.mjtGeom.mjGEOM_SPHERE
+        self.reward_calculator.reset(initial_object_height=obj_z, is_sphere=is_sphere)
 
         obs = self._get_obs()
         info = {"object_type": self._current_object_type}

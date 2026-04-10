@@ -20,12 +20,14 @@ class GraspRewardCalculator:
         self.no_contact_idle_penalty = config.no_contact_idle_penalty
         self.table_height = table_height
         self._was_lifted = False
+        self._is_sphere = False
         self._initial_height_above_table = 0.0
 
-    def reset(self, initial_object_height: float | None = None) -> None:
+    def reset(self, initial_object_height: float | None = None, is_sphere: bool = False) -> None:
         """Reset for a new episode."""
 
         self._was_lifted = False
+        self._is_sphere = is_sphere
         if initial_object_height is None:
             self._initial_height_above_table = 0.0
         else:
@@ -56,9 +58,9 @@ class GraspRewardCalculator:
         @type num_fingers_in_contact: int
         @param contact_finger_indices: set of finger indices currently in contact
         @type contact_finger_indices: set[int]
-        @param actions: (20,) current actions
+        @param actions: (22,) current actions
         @type actions: np.ndarray
-        @param previous_actions: (20,) last step's actions
+        @param previous_actions: (22,) last step's actions
         @type previous_actions: np.ndarray
         @return: (total, info) weighted reward sum and per-component breakdown
         @rtype: tuple[float, dict[str, float]]
@@ -75,11 +77,14 @@ class GraspRewardCalculator:
         reaching = float(np.exp(-10.0 * np.mean(dists))) * (1.0 - 0.5 * contact_factor)
         info["reward/reaching"] = reaching
 
-        side_contacts = 0
-        for idx in contact_finger_indices:
-            if finger_positions[idx, 2] <= object_position[2] + 0.015:
-                side_contacts += 1
-        side_ratio = side_contacts / max(num_fingers_in_contact, 1)
+        if self._is_sphere:
+            side_ratio = 1.0 if num_fingers_in_contact > 0 else 0.0
+        else:
+            side_contacts = 0
+            for idx in contact_finger_indices:
+                if finger_positions[idx, 2] <= object_position[2] + 0.015:
+                    side_contacts += 1
+            side_ratio = side_contacts / max(num_fingers_in_contact, 1)
         info["reward/grasp_quality"] = side_ratio
 
         grasping = (num_fingers_in_contact / 5.0) * (0.3 + 0.7 * side_ratio)
