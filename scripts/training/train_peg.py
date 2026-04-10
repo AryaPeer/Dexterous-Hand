@@ -6,7 +6,7 @@ from pathlib import Path
 
 import gymnasium as gym
 from stable_baselines3 import SAC
-from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 import torch
 import wandb
@@ -18,6 +18,7 @@ from dexterous_hand.curriculum.callbacks import (
     scale_stage_starts,
 )
 import dexterous_hand.envs  # noqa: F401
+from scripts.training._common import VecNormSyncEvalCallback
 
 
 def make_env(rank: int, seed: int, config: PegTrainConfig) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
@@ -109,7 +110,7 @@ def train(config: PegTrainConfig) -> None:
 
     callbacks = [
         curriculum_callback,
-        EvalCallback(
+        VecNormSyncEvalCallback(
             eval_env,
             best_model_save_path=str(run_dir / "best"),
             eval_freq=max(50_000 // config.n_envs, 1),

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import gymnasium as gym
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 import torch
 import wandb
@@ -18,15 +18,7 @@ from dexterous_hand.curriculum.callbacks import (
     scale_stage_starts,
 )
 import dexterous_hand.envs  # noqa: F401
-
-
-class VecNormSyncEvalCallback(EvalCallback):
-    """EvalCallback that keeps eval obs normalization in sync with training env."""
-
-    def _on_step(self) -> bool:
-        if isinstance(self.training_env, VecNormalize) and isinstance(self.eval_env, VecNormalize):
-            self.eval_env.obs_rms = self.training_env.obs_rms
-        return super()._on_step()
+from scripts.training._common import VecNormSyncEvalCallback
 
 
 def make_env(rank: int, seed: int, config: ReorientTrainConfig) -> Callable[[], gym.Env]:  # type: ignore[type-arg]

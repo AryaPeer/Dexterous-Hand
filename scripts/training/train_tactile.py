@@ -6,7 +6,7 @@ from pathlib import Path
 
 import gymnasium as gym
 from stable_baselines3 import SAC
-from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 import torch
 import wandb
@@ -19,6 +19,7 @@ from dexterous_hand.curriculum.callbacks import (
 )
 import dexterous_hand.envs  # noqa: F401
 from dexterous_hand.tactile.feature_extractor import TactileFeatureExtractor
+from scripts.training._common import VecNormSyncEvalCallback
 
 
 def make_env(
@@ -127,7 +128,7 @@ def train_variant(
 
     callbacks = [
         AssemblyCurriculumCallback(stages=curriculum_stages, verbose=1),
-        EvalCallback(
+        VecNormSyncEvalCallback(
             eval_env,
             best_model_save_path=str(variant_dir / "best"),
             eval_freq=max(50_000 // config.n_envs, 1),
