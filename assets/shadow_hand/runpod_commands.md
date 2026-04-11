@@ -23,11 +23,12 @@ uv sync
 tmux new-session -s train
 ```
 
-### Grasp + reorient (256 envs)
+### Grasp + reorient (256 envs) USE CPU INSTANCE
 
 ```bash
 cd ~/dexterous_hand
 export OPENBLAS_NUM_THREADS=32
+export CUDA_VISIBLE_DEVICES=
 export WANDB_MODE=disabled
 ```
 

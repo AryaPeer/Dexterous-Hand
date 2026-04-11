@@ -100,7 +100,7 @@ def train(config: TrainConfig) -> None:
         },
         verbose=1,
         seed=config.seed,
-        device="auto",
+        device="cpu",
     )
 
     # callbacks

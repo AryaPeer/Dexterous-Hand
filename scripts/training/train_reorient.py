@@ -112,7 +112,7 @@ def train(config: ReorientTrainConfig) -> None:
         },
         verbose=1,
         seed=config.seed,
-        device="auto",
+        device="cpu",
     )
 
     # callbacks
