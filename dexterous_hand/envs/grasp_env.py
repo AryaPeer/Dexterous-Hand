@@ -228,15 +228,15 @@ class ShadowHandGraspEnv(gym.Env):
 
         obs = np.concatenate(
             [
-                joint_pos,       # 24
-                joint_vel,       # 24
+                joint_pos,       # 26
+                joint_vel,       # 26
                 obj_pos,         # 3
                 obj_quat,        # 4
                 obj_linvel,      # 3
                 obj_angvel,      # 3
                 rel_pos,         # 3
                 fingertip_pos,   # 15
-                self._previous_actions,  # 20
+                self._previous_actions,  # 22
             ]
         )
 

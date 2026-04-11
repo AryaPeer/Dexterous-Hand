@@ -22,7 +22,7 @@ class PegRewardCalculator:
 
         self.weights = config.weights
         self.peg_length = peg_half_length * 2.0
-        self.lift_target = 0.1
+        self.lift_target = config.lift_target
         self.drop_penalty_value = config.drop_penalty
         self.complete_bonus = config.complete_bonus
         self.force_threshold = config.force_threshold

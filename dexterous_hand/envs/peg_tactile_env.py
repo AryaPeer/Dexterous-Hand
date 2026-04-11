@@ -10,7 +10,7 @@ from dexterous_hand.utils.mujoco_helpers import get_finger_contacts, get_object_
 
 
 class ShadowHandPegTactileEnv(ShadowHandPegEnv):
-    """Peg-in-hole with tactile sensing. Obs: 365 (125 proprio + 240 tactile)."""
+    """Peg-in-hole with tactile sensing. Obs: 371 (131 proprio + 240 tactile)."""
 
     def __init__(
         self,

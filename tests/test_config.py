@@ -74,7 +74,7 @@ class TestConfigDefaults:
         assert c.action_smoothing_alpha == 0.2
         assert c.spawn_min_radius == 0.04
         assert c.clearance == 0.004
-        assert c.hole_depth == 0.05
+        assert c.hole_depth == 0.06
         assert len(c.hole_offset) == 2
         assert c.peg_radius == 0.008
         assert c.peg_half_length == 0.03

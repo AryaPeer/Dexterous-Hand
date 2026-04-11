@@ -15,7 +15,7 @@ class TactileFeatureExtractor(BaseFeaturesExtractor):
     def __init__(
         self,
         observation_space: gymnasium.spaces.Box,
-        proprio_dim: int = 125,
+        proprio_dim: int = 131,
     ) -> None:
         """Split obs into proprio + tactile with CNN encoding.
 

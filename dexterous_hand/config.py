@@ -153,6 +153,7 @@ class PegRewardConfig:
     force_threshold: float = 5.0  # penalize contact forces above this (Newtons)
     idle_stage0_penalty: float = -0.1
     min_contacts_for_align: int = 2
+    lift_target: float = 0.1  # target lift height above initial peg z
 
 
 @dataclass
@@ -163,7 +164,7 @@ class PegSceneConfig:
     table_height: float = 0.4
     table_half_size: float = 0.25
     clearance: float = 0.004  # initial hole clearance in meters
-    hole_depth: float = 0.05
+    hole_depth: float = 0.06
     hole_offset: list[float] = field(default_factory=lambda: [0.0, 0.0])  # XY offset from center
     spawn_min_radius: float = 0.04
     peg_radius: float = 0.008

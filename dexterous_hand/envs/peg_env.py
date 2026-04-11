@@ -372,8 +372,8 @@ class ShadowHandPegEnv(gym.Env):
 
         obs = np.concatenate(
             [
-                joint_pos,                # 24
-                joint_vel,                # 24
+                joint_pos,                # 26
+                joint_vel,                # 26
                 peg_pos,                  # 3
                 peg_quat,                 # 4
                 peg_linvel,               # 3
@@ -388,7 +388,7 @@ class ShadowHandPegEnv(gym.Env):
                 [insertion_depth],        # 1
                 contact_forces,           # 6
                 [float(self._stage)],     # 1
-                self._previous_actions,   # 20
+                self._previous_actions,   # 22
             ]
         )
 

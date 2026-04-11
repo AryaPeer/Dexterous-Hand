@@ -264,8 +264,8 @@ class TestGraspReward:
                 object_linear_velocity=rng.uniform(-5, 5, 3),
                 num_fingers_in_contact=n_contacts,
                 contact_finger_indices=contact_indices,
-                actions=rng.uniform(-1, 1, 20),
-                previous_actions=rng.uniform(-1, 1, 20),
+                actions=rng.uniform(-1, 1, 22),
+                previous_actions=rng.uniform(-1, 1, 22),
             )
             assert np.isfinite(total)
             for v in info.values():
