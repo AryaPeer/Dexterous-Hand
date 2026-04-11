@@ -301,12 +301,12 @@ class TestReorientReward:
         _, info, _ = calc.compute(**self._default_kwargs())
 
         expected_keys = {
+            "reward/angular_progress",
             "reward/orientation_tracking",
             "reward/orientation_success",
             "reward/cube_drop",
             "reward/velocity_penalty",
             "reward/fingertip_distance",
-            "reward/position_penalty",
             "reward/action_penalty",
             "reward/action_rate_penalty",
             "reward/finger_contact_bonus",
@@ -361,26 +361,35 @@ class TestReorientReward:
         _, info, _ = calc.compute(**self._default_kwargs(dropped=True))
         assert_allclose(info["reward/cube_drop"], -20.0)
 
-    def test_position_penalty_increases_with_displacement(self):
+    def test_velocity_penalty_only_linear(self):
         calc = self.make_calc()
-        cube_near = np.array([0.0, 0.0, 0.5])
-        cube_far = np.array([0.1, 0.1, 0.5])
-        _, info_near, _ = calc.compute(**self._default_kwargs(
-            cube_pos=cube_near, finger_positions=_fingertips_at(cube_near),
-        ))
-        _, info_far, _ = calc.compute(**self._default_kwargs(
-            cube_pos=cube_far, finger_positions=_fingertips_at(cube_far),
-        ))
-        assert info_far["reward/position_penalty"] < info_near["reward/position_penalty"]
-        assert_allclose(info_near["reward/position_penalty"], 0.0, atol=1e-10)
-
-    def test_velocity_penalty_negative_for_moving_cube(self):
-        calc = self.make_calc()
-        _, info, _ = calc.compute(**self._default_kwargs(
-            cube_linvel=np.array([1.0, 0.0, 0.0]),
+        # pure angular velocity should no longer be penalized
+        _, info_spin, _ = calc.compute(**self._default_kwargs(
             cube_angvel=np.array([0.0, 2.0, 0.0]),
         ))
-        assert info["reward/velocity_penalty"] < 0.0
+        assert_allclose(info_spin["reward/velocity_penalty"], 0.0)
+
+        _, info_slide, _ = calc.compute(**self._default_kwargs(
+            cube_linvel=np.array([1.0, 0.0, 0.0]),
+        ))
+        assert info_slide["reward/velocity_penalty"] < 0.0
+
+    def test_angular_progress_zero_on_first_step(self):
+        calc = self.make_calc()
+        from dexterous_hand.utils.quaternion import quat_from_axis_angle
+        q_off = quat_from_axis_angle(np.array([0.0, 0.0, 1.0]), np.pi / 4)
+        _, info, _ = calc.compute(**self._default_kwargs(cube_quat=q_off))
+        assert_allclose(info["reward/angular_progress"], 0.0)
+
+    def test_angular_progress_positive_when_approaching_target(self):
+        calc = self.make_calc()
+        from dexterous_hand.utils.quaternion import quat_from_axis_angle
+        q_far = quat_from_axis_angle(np.array([0.0, 0.0, 1.0]), np.pi / 2)
+        q_near = quat_from_axis_angle(np.array([0.0, 0.0, 1.0]), np.pi / 4)
+
+        calc.compute(**self._default_kwargs(cube_quat=q_far))
+        _, info, _ = calc.compute(**self._default_kwargs(cube_quat=q_near))
+        assert info["reward/angular_progress"] > 0.0
 
 
 # --- peg reward tests ---

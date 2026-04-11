@@ -62,16 +62,16 @@ class TrainConfig:
 
 @dataclass
 class ReorientRewardWeights:
+    angular_progress: float = 10.0
     orientation_tracking: float = 3.0
-    orientation_success: float = 2.0
+    orientation_success: float = 4.0
     cube_drop: float = 1.0
     velocity_penalty: float = 1.5
-    fingertip_distance: float = 0.5
-    position_penalty: float = 1.0
-    action_penalty: float = 2.0
-    action_rate_penalty: float = 2.0
-    contact_bonus: float = 1.0
-    no_contact: float = 1.0
+    fingertip_distance: float = 0.1
+    action_penalty: float = 0.5
+    action_rate_penalty: float = 0.5
+    contact_bonus: float = 0.1
+    no_contact: float = 0.2
 
 
 @dataclass

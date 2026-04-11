@@ -7,7 +7,7 @@ from pathlib import Path
 import gymnasium as gym
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor, VecNormalize
 import torch
 import wandb
 from wandb.integration.sb3 import WandbCallback
@@ -74,6 +74,7 @@ def train_variant(
 
     env_fns = [make_env(env_id, i, config.seed, config) for i in range(config.n_envs)]
     vec_env = SubprocVecEnv(env_fns) if config.n_envs > 1 else DummyVecEnv(env_fns)
+    vec_env = VecMonitor(vec_env)
 
     if config.norm_obs or config.norm_reward:
         vec_env = VecNormalize(  # type: ignore[assignment]
@@ -85,6 +86,7 @@ def train_variant(
 
     eval_fns = [make_env(env_id, 0, config.seed + 10000, config)]
     eval_env = DummyVecEnv(eval_fns)
+    eval_env = VecMonitor(eval_env)
     if config.norm_obs or config.norm_reward:
         eval_env = VecNormalize(  # type: ignore[assignment]
             eval_env,

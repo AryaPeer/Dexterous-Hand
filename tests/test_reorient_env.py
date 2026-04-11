@@ -57,12 +57,12 @@ class TestReorientEnvStep:
         reorient_env.reset(seed=42)
         _, _, _, _, info = reorient_env.step(reorient_env.action_space.sample())
         expected = [
+            "reward/angular_progress",
             "reward/orientation_tracking",
             "reward/orientation_success",
             "reward/cube_drop",
             "reward/velocity_penalty",
             "reward/fingertip_distance",
-            "reward/position_penalty",
             "reward/action_penalty",
             "reward/action_rate_penalty",
             "reward/total",

@@ -7,7 +7,7 @@ from pathlib import Path
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor, VecNormalize
 import torch
 import wandb
 from wandb.integration.sb3 import WandbCallback
@@ -36,11 +36,15 @@ def train(config: TrainConfig) -> None:
     run_dir = Path("runs") / f"grasp_{config.n_envs}env_{config.seed}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # clamp batch_size for small local runs
     rollout_size = config.n_envs * config.n_steps_per_env
     if config.batch_size > rollout_size:
-        config.batch_size = rollout_size
-        print(f"Clamped batch_size to {config.batch_size} (n_envs * n_steps_per_env)")
+        new_bs = max(rollout_size // 4, 64)
+        print(
+            f"WARNING: batch_size {config.batch_size} > rollout_size {rollout_size}. "
+            f"Auto-resized to {new_bs} (rollout_size // 4) to preserve minibatching. "
+            f"Raise --n-envs or --n-steps-per-env for bigger updates."
+        )
+        config.batch_size = new_bs
 
     wandb.init(
         project="dexterous-hand",
@@ -51,6 +55,7 @@ def train(config: TrainConfig) -> None:
     # environments
     env_fns = [make_env(i, config.seed, config) for i in range(config.n_envs)]
     vec_env = SubprocVecEnv(env_fns) if config.n_envs > 1 else DummyVecEnv(env_fns)
+    vec_env = VecMonitor(vec_env)
 
     if config.norm_obs or config.norm_reward:
         vec_env = VecNormalize(  # type: ignore[assignment]
@@ -61,6 +66,7 @@ def train(config: TrainConfig) -> None:
         )
 
     eval_env = DummyVecEnv([make_env(0, config.seed + 10000, config)])
+    eval_env = VecMonitor(eval_env)
     if config.norm_obs or config.norm_reward:
         eval_env = VecNormalize(  # type: ignore[assignment]
             eval_env,
