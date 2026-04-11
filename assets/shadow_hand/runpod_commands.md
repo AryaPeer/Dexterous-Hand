@@ -23,6 +23,21 @@ uv sync
 tmux new-session -s train
 ```
 
+### Grasp + reorient (256 envs)
+
+```bash
+cd ~/dexterous_hand
+export OPENBLAS_NUM_THREADS=32
+export WANDB_MODE=disabled
+```
+
+```bash
+uv run python main.py train --n-envs 256 --total-timesteps 150000000
+uv run python main.py train-reorient --n-envs 256 --total-timesteps 400000000
+```
+
+### Peg + tactile (32 envs)
+
 ```bash
 cd ~/dexterous_hand
 export OPENBLAS_NUM_THREADS=1
@@ -31,13 +46,8 @@ export MKL_NUM_THREADS=1
 export WANDB_MODE=disabled
 ```
 
-Other tasks:
-
 ```bash
-uv run python main.py train --n-envs 256 --total-timesteps 150000000
-uv run python main.py train-reorient --n-envs 256 --total-timesteps 400000000
 uv run python main.py train-peg --n-envs 32 --total-timesteps 200000000
-uv run python main.py train-tactile --n-envs 32 --total-timesteps 200000000 --variant both
 uv run python main.py train-tactile --n-envs 32 --total-timesteps 200000000 --variant tactile
 ```
 
