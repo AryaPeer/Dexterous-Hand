@@ -33,7 +33,7 @@ export WANDB_MODE=disabled
 ```
 
 ```bash
-uv run python main.py train --n-envs 256 --total-timesteps 150000000
+uv run python main.py train --n-envs 256 --total-timesteps 30000000
 uv run python main.py train-reorient --n-envs 256 --total-timesteps 400000000
 ```
 
@@ -48,8 +48,8 @@ export WANDB_MODE=disabled
 ```
 
 ```bash
-uv run python main.py train-peg --n-envs 32 --total-timesteps 200000000
-uv run python main.py train-tactile --n-envs 32 --total-timesteps 200000000 --variant tactile
+uv run python main.py train-peg --n-envs 32 --total-timesteps 40000000
+uv run python main.py train-tactile --n-envs 32 --total-timesteps 40000000 --variant tactile
 ```
 
 In a new terminal, start a persistent watcher session that copies the full local `runs` content into `/workspace/runs/` (overwriting only matching files/folders) and then stops the pod:
