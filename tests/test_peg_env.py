@@ -107,14 +107,15 @@ class TestPegStages:
 @pytest.mark.slow
 class TestPegCurriculum:
     def test_set_curriculum_params(self, fresh_peg_env):
-        fresh_peg_env.unwrapped.set_curriculum_params(0.002, False)
+        fresh_peg_env.unwrapped.set_curriculum_params(0.002, 0.0)
         assert fresh_peg_env.unwrapped._clearance == 0.002
-        assert fresh_peg_env.unwrapped._peg_pre_grasped is False
+        assert fresh_peg_env.unwrapped._p_pre_grasped == 0.0
         obs, _ = fresh_peg_env.reset()
         assert np.all(np.isfinite(obs))
 
     def test_pre_grasped_mode(self, fresh_peg_env):
-        fresh_peg_env.unwrapped.set_curriculum_params(0.004, True)
+        fresh_peg_env.unwrapped.set_curriculum_params(0.004, 1.0)
+        assert fresh_peg_env.unwrapped._p_pre_grasped == 1.0
         obs, _ = fresh_peg_env.reset()
         assert np.all(np.isfinite(obs))
 

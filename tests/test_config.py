@@ -27,8 +27,11 @@ class TestConfigDefaults:
 
     def test_reward_weights(self):
         w = RewardWeights()
-        assert w.reaching == 0.4
-        assert w.grasping == 2.5
+        assert w.reaching == 1.0
+        assert w.grasping == 3.0
+        assert w.upward == 2.0
+        assert w.opposition == 1.0
+        assert w.action == 0.0
 
     def test_reward_config(self):
         c = RewardConfig()
@@ -82,17 +85,27 @@ class TestConfigDefaults:
 
     def test_peg_reward_config(self):
         c = PegRewardConfig()
-        assert c.complete_bonus == 50.0
+        assert c.complete_bonus == 500.0
         assert c.force_threshold == 5.0
         assert c.idle_stage0_penalty == -0.1
+        assert c.weights.upward == 2.0
+        assert c.weights.opposition == 1.0
 
     def test_peg_train_config(self):
         c = PegTrainConfig()
         assert c.ent_coef == "auto"
+        assert c.n_envs == 32
+        assert c.gradient_steps == 8
+        assert c.total_timesteps == 40_000_000
         assert isinstance(c.scene_config, PegSceneConfig)
         assert isinstance(c.reward_config, PegRewardConfig)
-        assert c.curriculum_reference_timesteps == 100_000_000
-        assert len(c.curriculum_stages) == 4
+        assert c.curriculum_reference_timesteps == 40_000_000
+        assert len(c.curriculum_stages) == 5
+        # curriculum stages are now 3-tuples: (step, clearance, p_pre_grasped)
+        for stage in c.curriculum_stages:
+            assert len(stage) == 3
+            step, clearance, p = stage
+            assert 0.0 <= p <= 1.0
 
     def test_tactile_config(self):
         c = TactileConfig()
@@ -104,9 +117,11 @@ class TestConfigDefaults:
         c = TactileTrainConfig()
         assert isinstance(c.scene_config, PegSceneConfig)
         assert isinstance(c.reward_config, PegRewardConfig)
-        assert c.curriculum_reference_timesteps == 100_000_000
-        assert len(c.curriculum_stages) == 4
+        assert c.curriculum_reference_timesteps == 40_000_000
+        assert len(c.curriculum_stages) == 5
         assert isinstance(c.tactile_config, TactileConfig)
+        for stage in c.curriculum_stages:
+            assert len(stage) == 3
 
     def test_all_configs_instantiate(self):
         """Every config class can be created with just defaults."""

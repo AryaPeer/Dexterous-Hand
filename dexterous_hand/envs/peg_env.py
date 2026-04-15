@@ -72,7 +72,8 @@ class ShadowHandPegEnv(gym.Env):
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._stage = 0
-        self._peg_pre_grasped = False
+        self._no_contact_grace = 0
+        self._p_pre_grasped = 0.0  # probability the next reset spawns peg pre-grasped
         self._clearance = self.scene_config.clearance
         self._init_qpos = self.data.qpos.copy()
         self._wall_geom_set: set[int] = set(self.nm.hole_wall_geom_ids)
@@ -124,10 +125,11 @@ class ShadowHandPegEnv(gym.Env):
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
         mujoco.mj_forward(self.model, self.data)
 
-        # place peg — either in hand or on table
+        # place peg — either in hand or on table (pre-grasped spawn is probabilistic)
         s = self.nm.peg_qpos_start
+        spawn_pre_grasped = self.np_random.random() < self._p_pre_grasped
 
-        if self._peg_pre_grasped:
+        if spawn_pre_grasped:
             palm_pos = get_palm_position(self.data, self.nm.palm_body_id)
             self.data.qpos[s : s + 3] = palm_pos + np.array([0.0, 0.0, -0.03], dtype=np.float64)
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
@@ -150,6 +152,7 @@ class ShadowHandPegEnv(gym.Env):
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._stage = 0
+        self._no_contact_grace = 0
         initial_peg_height = float(self.data.xpos[self.nm.peg_body_id][2])
         self._initial_peg_height = initial_peg_height
         self.reward_calculator.reset(initial_peg_height=initial_peg_height)
@@ -221,20 +224,28 @@ class ShadowHandPegEnv(gym.Env):
         )
         reward_force_mag = float(np.linalg.norm(wrench[:3]))
 
-        # determine task stage
-        fingers_on_peg = num_contacts >= 3
+        # determine task stage (monotonic with a short grace period to survive bounces)
+        fingers_on_peg = num_contacts >= 2
         peg_lifted = peg_pos[2] > self._initial_peg_height + 0.02
         peg_near_hole = float(np.linalg.norm(peg_pos[:2] - hole_pos[:2])) < 0.03
         peg_aligned = abs(float(np.dot(peg_axis, hole_axis))) > 0.95
 
-        if not fingers_on_peg:
-            self._stage = 0
-        elif not peg_lifted:
-            self._stage = 1
-        elif not (peg_near_hole and peg_aligned):
-            self._stage = 2
+        if num_contacts == 0:
+            self._no_contact_grace += 1
         else:
-            self._stage = 3
+            self._no_contact_grace = 0
+
+        if self._no_contact_grace >= 5:
+            self._stage = 0
+        else:
+            target = 0
+            if fingers_on_peg:
+                target = 1
+            if peg_lifted:
+                target = 2
+            if peg_near_hole and peg_aligned:
+                target = 3
+            self._stage = max(self._stage, target)
 
         # reward
         peg_height = float(peg_pos[2])
@@ -251,6 +262,7 @@ class ShadowHandPegEnv(gym.Env):
             num_fingers_in_contact=num_contacts,
             contact_finger_indices=contact_finger_indices,
             peg_height=peg_height,
+            peg_linvel=peg_linvel,
             actions=action.astype(np.float64),
             previous_actions=self._previous_actions,
         )
@@ -394,11 +406,11 @@ class ShadowHandPegEnv(gym.Env):
 
         return obs
 
-    def set_curriculum_params(self, clearance: float, pre_grasped: bool) -> None:
+    def set_curriculum_params(self, clearance: float, p_pre_grasped: float) -> None:
         """Update curriculum settings (called by curriculum callback)."""
 
         self._clearance = clearance
-        self._peg_pre_grasped = pre_grasped
+        self._p_pre_grasped = float(p_pre_grasped)
 
     def render(self) -> np.ndarray | None:  # type: ignore[override]
         """RGB frame if rgb_array mode, otherwise syncs viewer."""

@@ -81,13 +81,14 @@ class ReorientCurriculumCallback(BaseCallback):
 
 
 class AssemblyCurriculumCallback(BaseCallback):
-    """Gradually makes the peg-in-hole task harder (tighter clearance, no pre-grasp)."""
+    """Gradually makes the peg-in-hole task harder (tighter clearance, fewer pre-grasped spawns)."""
 
-    def __init__(self, stages: list[tuple[int, float, bool]], verbose: int = 0) -> None:
+    def __init__(self, stages: list[tuple[int, float, float]], verbose: int = 0) -> None:
         """Set up curriculum stages.
 
-        @param stages: list of (timestep, clearance, peg_pre_grasped) tuples
-        @type stages: list[tuple[int, float, bool]]
+        @param stages: list of (timestep, clearance, p_pre_grasped) tuples;
+            p_pre_grasped is the per-reset probability of spawning the peg already in the hand
+        @type stages: list[tuple[int, float, float]]
         @param verbose: print transitions if > 0
         @type verbose: int
         """
@@ -103,13 +104,13 @@ class AssemblyCurriculumCallback(BaseCallback):
             return
 
         clearance = self.stages[0][1]
-        pre_grasped = self.stages[0][2]
-        self.training_env.env_method("set_curriculum_params", clearance, pre_grasped)
+        p_pre_grasped = float(self.stages[0][2])
+        self.training_env.env_method("set_curriculum_params", clearance, p_pre_grasped)
 
         if self.verbose:
             print(
                 f"[Curriculum] Stage 0: clearance={clearance * 1000:.1f}mm, "
-                f"pre_grasped={pre_grasped} at step 0"
+                f"p_pre_grasped={p_pre_grasped:.2f} at step 0"
             )
 
     def _on_step(self) -> bool:
@@ -121,14 +122,14 @@ class AssemblyCurriculumCallback(BaseCallback):
         ):
             self._current_stage += 1
             clearance = self.stages[self._current_stage][1]
-            pre_grasped = self.stages[self._current_stage][2]
-            self.training_env.env_method("set_curriculum_params", clearance, pre_grasped)
+            p_pre_grasped = float(self.stages[self._current_stage][2])
+            self.training_env.env_method("set_curriculum_params", clearance, p_pre_grasped)
 
             if self.verbose:
                 print(
                     f"[Curriculum] Stage {self._current_stage}: "
                     f"clearance={clearance * 1000:.1f}mm, "
-                    f"pre_grasped={pre_grasped} at step {self.num_timesteps}"
+                    f"p_pre_grasped={p_pre_grasped:.2f} at step {self.num_timesteps}"
                 )
 
         return True

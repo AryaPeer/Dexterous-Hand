@@ -44,6 +44,7 @@ class TestGraspReward:
             "reward/reaching",
             "reward/grasping",
             "reward/lifting",
+            "reward/upward",
             "reward/holding",
             "reward/drop",
             "reward/idle_penalty",
@@ -84,8 +85,16 @@ class TestGraspReward:
     def test_grasping_proportional_to_contacts(self):
         calc = self.make_calc()
         obj = np.array([0.0, 0.0, 0.5])
+        # antipodal setup: thumb on +x side, other fingers on -x side → full opposition
+        fingers = np.array([
+            [+0.05, 0.0, 0.5],  # thumb
+            [-0.05, 0.0, 0.5],
+            [-0.05, 0.0, 0.5],
+            [-0.05, 0.0, 0.5],
+            [-0.05, 0.0, 0.5],
+        ])
         _, info5 = calc.compute(
-            _fingertips_at(obj),
+            fingers,
             obj,
             ZERO3,
             5,
@@ -102,7 +111,7 @@ class TestGraspReward:
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
-        assert_allclose(info5["reward/grasping"], 1.0)
+        assert_allclose(info5["reward/grasping"], 1.0, atol=1e-3)
         assert_allclose(info0["reward/grasping"], 0.0)
 
     def test_lifting_scales_with_height(self):
@@ -207,7 +216,7 @@ class TestGraspReward:
         )
         assert_allclose(info["reward/drop"], 0.0)
 
-    def test_action_penalty_negative(self):
+    def test_action_magnitude_penalty_disabled(self):
         calc = self.make_calc()
         actions = np.ones(22)
         obj = np.array([0.0, 0.0, 0.5])
@@ -221,8 +230,8 @@ class TestGraspReward:
             actions,
             ZERO_ACTIONS,
         )
-        assert info["reward/action_penalty"] < 0.0
-        assert_allclose(info["reward/action_penalty"], -0.01 * 22.0)
+        # action_magnitude path was dropped — its 1.5× weight was rewarding stillness.
+        assert_allclose(info["reward/action_penalty"], 0.0)
 
     def test_action_rate_zero_for_same_actions(self):
         calc = self.make_calc()
@@ -416,6 +425,7 @@ class TestPegReward:
             num_fingers_in_contact=0,
             contact_finger_indices=set(),
             peg_height=0.45,
+            peg_linvel=ZERO3,
             actions=ZERO_ACTIONS,
             previous_actions=ZERO_ACTIONS,
         )
@@ -431,6 +441,7 @@ class TestPegReward:
             "reward/grasp",
             "reward/grasp_quality",
             "reward/lift",
+            "reward/upward",
             "reward/align",
             "reward/depth",
             "reward/complete",
@@ -450,34 +461,93 @@ class TestPegReward:
         }
         assert expected_keys == set(info.keys())
 
-    def test_reach_dampens_with_contacts(self):
+    def test_reach_decreases_with_distance(self):
         calc = self.make_calc()
-        _, info_free = calc.compute(**self._default_kwargs(num_fingers_in_contact=0))
-        _, info_engaged = calc.compute(
-            **self._default_kwargs(num_fingers_in_contact=3, contact_finger_indices={0, 1, 2})
+        peg = np.array([0.0, 0.0, 0.45])
+        _, info_close = calc.compute(
+            **self._default_kwargs(
+                peg_position=peg,
+                finger_positions=_fingertips_at(peg + 0.01),
+            )
         )
-        assert info_free["reward/reach"] > info_engaged["reward/reach"]
-        assert info_engaged["reward/reach"] > 0.0  # dampened, not zeroed
+        _, info_far = calc.compute(
+            **self._default_kwargs(
+                peg_position=peg,
+                finger_positions=_fingertips_at(peg + 0.3),
+            )
+        )
+        assert info_close["reward/reach"] > info_far["reward/reach"]
 
     def test_grasp_proportional(self):
         calc = self.make_calc()
+        peg = np.array([0.0, 0.0, 0.45])
+        # antipodal setup: thumb on +x, other fingers on -x → full opposition
+        antipodal_fingers = np.array([
+            [+0.02, 0.0, 0.45],  # thumb
+            [-0.02, 0.0, 0.45],
+            [-0.02, 0.0, 0.45],
+            [-0.02, 0.0, 0.45],
+            [-0.02, 0.0, 0.45],
+        ])
         _, info5 = calc.compute(
-            **self._default_kwargs(num_fingers_in_contact=5, contact_finger_indices={0, 1, 2, 3, 4})
+            **self._default_kwargs(
+                peg_position=peg,
+                finger_positions=antipodal_fingers,
+                num_fingers_in_contact=5,
+                contact_finger_indices={0, 1, 2, 3, 4},
+            )
         )
-        _, info1 = calc.compute(**self._default_kwargs(num_fingers_in_contact=1, contact_finger_indices={0}))
-        assert_allclose(info5["reward/grasp"], 1.0)
-        assert_allclose(info1["reward/grasp"], 0.2, rtol=1e-6)
+        _, info0 = calc.compute(**self._default_kwargs(num_fingers_in_contact=0))
+        assert_allclose(info5["reward/grasp"], 1.0, atol=1e-3)
+        assert_allclose(info0["reward/grasp"], 0.0)
+
+    def test_opposition_zero_without_thumb_or_others(self):
+        calc = self.make_calc()
+        # thumb alone in contact: no "other" side → opposition = 0
+        _, info_thumb_only = calc.compute(
+            **self._default_kwargs(num_fingers_in_contact=1, contact_finger_indices={0})
+        )
+        assert_allclose(info_thumb_only["reward/grasp_quality"], 0.0)
+
+        # no thumb, multiple fingers → opposition = 0
+        _, info_no_thumb = calc.compute(
+            **self._default_kwargs(num_fingers_in_contact=3, contact_finger_indices={1, 2, 3})
+        )
+        assert_allclose(info_no_thumb["reward/grasp_quality"], 0.0)
 
     def test_lift_scales_with_height(self):
         calc = self.make_calc()
+        # reset with initial_peg_height so lift_height = peg_height - table_height
+        calc.reset(initial_peg_height=self.TABLE_HEIGHT)
         _, info_low = calc.compute(
-            **self._default_kwargs(peg_height=0.4, num_fingers_in_contact=2, contact_finger_indices={0, 1})
+            **self._default_kwargs(
+                peg_height=self.TABLE_HEIGHT,
+                num_fingers_in_contact=3,
+                contact_finger_indices={0, 1, 2},
+            )
         )
         _, info_high = calc.compute(
-            **self._default_kwargs(peg_height=0.5, num_fingers_in_contact=2, contact_finger_indices={0, 1})
+            **self._default_kwargs(
+                peg_height=self.TABLE_HEIGHT + 0.1,
+                num_fingers_in_contact=3,
+                contact_finger_indices={0, 1, 2},
+            )
         )
         assert_allclose(info_low["reward/lift"], 0.0)
         assert_allclose(info_high["reward/lift"], 1.0)
+
+    def test_lift_scales_with_contact_count(self):
+        calc = self.make_calc()
+        calc.reset(initial_peg_height=self.TABLE_HEIGHT)
+        # contact_scale = min(n / 3, 1); lift at full target → lift = contact_scale
+        _, info_two = calc.compute(
+            **self._default_kwargs(
+                peg_height=self.TABLE_HEIGHT + 0.1,
+                num_fingers_in_contact=2,
+                contact_finger_indices={0, 1},
+            )
+        )
+        assert_allclose(info_two["reward/lift"], 2.0 / 3.0, rtol=1e-6)
 
     def test_lift_requires_contact(self):
         calc = self.make_calc()
@@ -501,19 +571,34 @@ class TestPegReward:
         expected_depth = 10.0 * 0.5
         assert_allclose(info["reward/depth"], expected_depth, rtol=1e-6)
 
-    def test_insertion_depth_gated_by_lateral(self):
+    def test_insertion_depth_decays_with_lateral(self):
         calc = self.make_calc()
         peg_length = PegSceneConfig().peg_half_length * 2.0
         peg_pos = np.array([0.0, 0.0, 0.45])
-        hole_pos = np.array([0.01, 0.0, 0.45])  # 10mm lateral
-        _, info = calc.compute(
+        _, info_aligned = calc.compute(
             **self._default_kwargs(
                 peg_position=peg_pos,
-                hole_position=hole_pos,
+                hole_position=np.array([0.0, 0.0, 0.45]),
                 insertion_depth=peg_length * 0.5,
             )
         )
-        assert_allclose(info["reward/depth"], 0.0)
+        _, info_off = calc.compute(
+            **self._default_kwargs(
+                peg_position=peg_pos,
+                hole_position=np.array([0.01, 0.0, 0.45]),  # 10mm lateral
+                insertion_depth=peg_length * 0.5,
+            )
+        )
+        _, info_far = calc.compute(
+            **self._default_kwargs(
+                peg_position=peg_pos,
+                hole_position=np.array([0.1, 0.0, 0.45]),  # 100mm lateral
+                insertion_depth=peg_length * 0.5,
+            )
+        )
+        # smooth decay, not a hard gate
+        assert info_aligned["reward/depth"] > info_off["reward/depth"] > info_far["reward/depth"]
+        assert info_far["reward/depth"] >= 0.0
 
     def test_completion_bonus_after_hold(self):
         calc = self.make_calc()
@@ -525,7 +610,7 @@ class TestPegReward:
         )
         for _ in range(10):
             _, info = calc.compute(**kwargs)
-        assert_allclose(info["reward/complete"], 50.0)
+        assert_allclose(info["reward/complete"], 500.0)
 
     def test_force_penalty_above_threshold(self):
         calc = self.make_calc()

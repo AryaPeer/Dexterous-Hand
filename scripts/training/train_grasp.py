@@ -145,7 +145,7 @@ def train(config: TrainConfig) -> None:
 def parse_args() -> TrainConfig:
     parser = argparse.ArgumentParser(description="Train Shadow Hand grasping")
     parser.add_argument("--n-envs", type=int, default=4)
-    parser.add_argument("--total-timesteps", type=int, default=50_000_000)
+    parser.add_argument("--total-timesteps", type=int, default=30_000_000)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--batch-size", type=int, default=4096)
     parser.add_argument("--n-steps-per-env", type=int, default=128)

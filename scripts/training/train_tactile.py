@@ -168,7 +168,7 @@ def train_variant(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tactile ablation study")
     parser.add_argument("--n-envs", type=int, default=4)
-    parser.add_argument("--total-timesteps", type=int, default=100_000_000)
+    parser.add_argument("--total-timesteps", type=int, default=40_000_000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--variant",

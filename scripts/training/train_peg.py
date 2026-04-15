@@ -151,8 +151,8 @@ def train(config: PegTrainConfig) -> None:
 
 def parse_args() -> PegTrainConfig:
     parser = argparse.ArgumentParser(description="Train Shadow Hand peg-in-hole (SAC)")
-    parser.add_argument("--n-envs", type=int, default=4)
-    parser.add_argument("--total-timesteps", type=int, default=100_000_000)
+    parser.add_argument("--n-envs", type=int, default=32)
+    parser.add_argument("--total-timesteps", type=int, default=40_000_000)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--seed", type=int, default=42)

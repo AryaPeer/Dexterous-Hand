@@ -18,14 +18,16 @@ class SceneConfig:
 
 @dataclass
 class RewardWeights:
-    reaching: float = 0.4
-    grasping: float = 2.5
+    reaching: float = 1.0
+    grasping: float = 3.0
     lifting: float = 6.0
     holding: float = 4.0
     drop: float = 1.0
-    action: float = 1.5
-    action_rate: float = 1.5
+    action: float = 0.0
+    action_rate: float = 0.3
     idle: float = 1.0
+    upward: float = 2.0
+    opposition: float = 1.0
 
 
 @dataclass
@@ -35,12 +37,13 @@ class RewardConfig:
     hold_velocity_threshold: float = 0.05
     drop_penalty: float = -10.0
     no_contact_idle_penalty: float = -0.08
+    hold_bonus: float = 500.0
 
 
 @dataclass
 class TrainConfig:
     n_envs: int = 256
-    total_timesteps: int = 150_000_000
+    total_timesteps: int = 30_000_000
     learning_rate: float = 3e-4
     batch_size: int = 4096
     n_steps_per_env: int = 128
@@ -132,16 +135,18 @@ class ReorientTrainConfig:
 
 @dataclass
 class PegRewardWeights:
-    reach: float = 0.4
-    grasp: float = 2.5
+    reach: float = 1.0
+    grasp: float = 3.0
     lift: float = 6.0
-    align: float = 1.5
-    depth: float = 2.0
+    upward: float = 2.0
+    opposition: float = 1.0
+    align: float = 2.0
+    depth: float = 3.0
     complete: float = 1.0
     force: float = 1.0
     drop: float = 1.0
-    smoothness: float = 1.5
-    action_magnitude: float = 1.5
+    smoothness: float = 0.3
+    action_magnitude: float = 0.0
     idle_stage0: float = 1.0
 
 
@@ -149,7 +154,7 @@ class PegRewardWeights:
 class PegRewardConfig:
     weights: PegRewardWeights = field(default_factory=PegRewardWeights)
     drop_penalty: float = -10.0
-    complete_bonus: float = 50.0
+    complete_bonus: float = 500.0
     force_threshold: float = 5.0  # penalize contact forces above this (Newtons)
     idle_stage0_penalty: float = -0.1
     min_contacts_for_align: int = 2
@@ -180,8 +185,8 @@ class PegSceneConfig:
 class PegTrainConfig:
     """SAC config for peg-in-hole training."""
 
-    n_envs: int = 256
-    total_timesteps: int = 100_000_000
+    n_envs: int = 32
+    total_timesteps: int = 40_000_000
     learning_rate: float = 3e-4
     batch_size: int = 256
     buffer_size: int = 1_000_000  # replay buffer size
@@ -189,7 +194,7 @@ class PegTrainConfig:
     tau: float = 0.005  # soft target update coefficient
     gamma: float = 0.99
     train_freq: int = 1  # update policy every step
-    gradient_steps: int = 1
+    gradient_steps: int = 8  # UTD ≈ gradient_steps / n_envs; 8/32 = 0.25 for balanced SAC updates
     ent_coef: str = "auto"  # let SAC auto-tune the entropy coefficient
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     activation: str = "elu"
@@ -198,13 +203,14 @@ class PegTrainConfig:
     norm_reward: bool = True
     scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
     reward_config: PegRewardConfig = field(default_factory=PegRewardConfig)
-    curriculum_reference_timesteps: int = 100_000_000
-    curriculum_stages: list[tuple[int, float, bool]] = field(
+    curriculum_reference_timesteps: int = 40_000_000
+    curriculum_stages: list[tuple[int, float, float]] = field(
         default_factory=lambda: [
-            (0, 0.004, True),  # start easy: 4mm clearance, peg already in hand
-            (25_000_000, 0.004, False),  # now it has to pick up the peg itself
-            (50_000_000, 0.002, False),  # tighter hole (2mm)
-            (75_000_000, 0.001, False),  # final difficulty (1mm clearance)
+            (0,          0.004, 1.0),   # start easy: 4mm clearance, always pre-grasped
+            (3_500_000,  0.004, 0.5),   # half of episodes still spawn pre-grasped
+            (8_000_000,  0.003, 0.3),   # mostly free spawns; 30% pre-grasped keeps insertion landscape visible
+            (20_000_000, 0.002, 0.3),   # tighter hole
+            (30_000_000, 0.001, 0.2),   # final difficulty
         ]
     )
 
@@ -222,8 +228,8 @@ class TactileConfig:
 class TactileTrainConfig:
     """SAC config shared by tactile and baseline variants in the ablation study."""
 
-    n_envs: int = 256
-    total_timesteps: int = 100_000_000
+    n_envs: int = 32
+    total_timesteps: int = 40_000_000
     learning_rate: float = 3e-4
     batch_size: int = 256
     buffer_size: int = 1_000_000
@@ -231,7 +237,7 @@ class TactileTrainConfig:
     tau: float = 0.005
     gamma: float = 0.99
     train_freq: int = 1
-    gradient_steps: int = 1
+    gradient_steps: int = 8
     ent_coef: str = "auto"
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     activation: str = "elu"
@@ -240,13 +246,14 @@ class TactileTrainConfig:
     norm_reward: bool = True
     scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
     reward_config: PegRewardConfig = field(default_factory=PegRewardConfig)
-    curriculum_reference_timesteps: int = 100_000_000
-    curriculum_stages: list[tuple[int, float, bool]] = field(
+    curriculum_reference_timesteps: int = 40_000_000
+    curriculum_stages: list[tuple[int, float, float]] = field(
         default_factory=lambda: [
-            (0, 0.004, True),
-            (25_000_000, 0.004, False),
-            (50_000_000, 0.002, False),
-            (75_000_000, 0.001, False),
+            (0,          0.004, 1.0),
+            (3_500_000,  0.004, 0.5),
+            (8_000_000,  0.003, 0.3),
+            (20_000_000, 0.002, 0.3),
+            (30_000_000, 0.001, 0.2),
         ]
     )
     tactile_config: TactileConfig = field(default_factory=TactileConfig)
