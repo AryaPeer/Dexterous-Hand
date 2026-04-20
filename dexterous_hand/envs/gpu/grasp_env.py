@@ -1,0 +1,246 @@
+
+from __future__ import annotations
+
+from typing import Any, NamedTuple
+
+import jax
+import jax.numpy as jnp
+import mujoco
+import mujoco.mjx as mjx
+
+from dexterous_hand.config import MjxGraspTrainConfig, RewardConfig, SceneConfig
+from dexterous_hand.envs.gpu.mjx_vec_env import MjxVecEnv
+from dexterous_hand.envs.scene_builder import (
+    apply_flexion_bias,
+    build_scene,
+    get_object_half_height,
+)
+from dexterous_hand.rewards.gpu.grasp_reward import (
+    GraspRewardState,
+    grasp_reward,
+    init_grasp_reward_state,
+)
+from dexterous_hand.utils.gpu.mjx_helpers import (
+    get_finger_touch_from_sensors,
+    get_fingertip_positions_jax,
+    get_object_state_jax,
+    get_palm_position_jax,
+)
+
+class GraspEnvState(NamedTuple):
+    reward_state: GraspRewardState
+    previous_actions: jnp.ndarray
+    smoothed_actions: jnp.ndarray
+    step_count: jnp.ndarray
+
+class ShadowHandGraspMjxEnv(MjxVecEnv):
+
+    def __init__(
+        self,
+        num_envs: int = 2048,
+        seed: int = 42,
+        scene_config: SceneConfig | None = None,
+        reward_config: RewardConfig | None = None,
+        max_episode_steps: int = 200,
+    ) -> None:
+        self.scene_config = scene_config or SceneConfig()
+        self.reward_config = reward_config or RewardConfig()
+        self._episode_limit = max_episode_steps
+        self._reward_weights = self.reward_config.weights
+
+        super().__init__(num_envs=num_envs, seed=seed)
+
+        _, _, self._nm = build_scene(self.scene_config)
+
+        init_qpos = self._cpu_data.qpos.copy()
+        apply_flexion_bias(init_qpos, self._cpu_model)
+        self._init_qpos = jnp.array(init_qpos)
+
+        self._finger_touch_adr = jnp.asarray(
+            self._nm.sensor_map.finger_touch_adr, dtype=jnp.int32
+        )
+        self._fingertip_site_ids = jnp.asarray(self._nm.fingertip_site_ids, dtype=jnp.int32)
+
+        obj_geom_id = self._nm.object_geom_id
+        self._object_half_height = float(
+            get_object_half_height(
+                int(self._cpu_model.geom_type[obj_geom_id]),
+                list(self._cpu_model.geom_size[obj_geom_id]),
+            )
+        )
+
+    def _build_model(self) -> mujoco.MjModel:
+        model, _, _ = build_scene(self.scene_config)
+        return model
+
+    def _obs_size(self) -> int:
+        return 105
+
+    def _action_size(self) -> int:
+        return int(self._cpu_model.nu)
+
+    @property
+    def _max_episode_steps(self) -> int:
+        return self._episode_limit
+
+    def _reset_single(
+        self, mjx_model: Any, mjx_data: Any, key: jax.Array
+    ) -> tuple[Any, GraspEnvState]:
+        nm = self._nm
+        k1, k2, k3 = jax.random.split(key, 3)
+
+                         
+        qpos = self._init_qpos
+
+                                 
+        hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
+        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.01, maxval=0.01)
+        qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
+
+                                                     
+        obj_x = jax.random.uniform(k2, minval=-0.05, maxval=0.05)
+        obj_y = jax.random.uniform(k3, minval=-0.05, maxval=0.05)
+        obj_z = self.scene_config.table_height + self._object_half_height + 0.001
+
+        s = nm.obj_qpos_start
+        qpos = qpos.at[s : s + 3].set(jnp.array([obj_x, obj_y, obj_z]))
+        qpos = qpos.at[s + 3 : s + 7].set(jnp.array([1.0, 0.0, 0.0, 0.0]))
+
+        qvel = jnp.zeros(mjx_model.nv)
+
+        mjx_data = mjx_data.replace(qpos=qpos, qvel=qvel)
+        mjx_data = mjx.forward(mjx_model, mjx_data)
+
+        n_act = self._action_size()
+        reward_state = init_grasp_reward_state(
+            initial_object_height=float(obj_z),
+            table_height=self.scene_config.table_height,
+        )
+        env_state = GraspEnvState(
+            reward_state=reward_state,
+            previous_actions=jnp.zeros(n_act),
+            smoothed_actions=jnp.zeros(n_act),
+            step_count=jnp.array(0, dtype=jnp.int32),
+        )
+
+        return mjx_data, env_state
+
+    def _step_single(
+        self,
+        mjx_model: Any,
+        mjx_data: Any,
+        env_state: GraspEnvState,
+        action: jax.Array,
+    ) -> tuple[Any, GraspEnvState, jax.Array, jax.Array, jax.Array, dict[str, jax.Array]]:
+        nm = self._nm
+        action = jnp.clip(action, -1.0, 1.0)
+
+                          
+        alpha = self.scene_config.action_smoothing_alpha
+        smoothed = (1.0 - alpha) * env_state.smoothed_actions + alpha * action
+
+                               
+        ctrl = self._ctrl_low + (smoothed + 1.0) / 2.0 * (self._ctrl_high - self._ctrl_low)
+        mjx_data = mjx_data.replace(ctrl=ctrl)
+
+                      
+        def _substep(data: Any, _: Any) -> tuple[Any, None]:
+            return mjx.step(mjx_model, data), None
+
+        mjx_data, _ = jax.lax.scan(_substep, mjx_data, None, length=self.scene_config.frame_skip)
+
+                    
+        finger_pos = get_fingertip_positions_jax(mjx_data.site_xpos, self._fingertip_site_ids)
+        obj_pos, obj_quat, obj_linvel, obj_angvel = get_object_state_jax(
+            mjx_data.qpos,
+            mjx_data.qvel,
+            mjx_data.xpos,
+            nm.object_body_id,
+            nm.obj_qpos_start,
+            nm.obj_qvel_start,
+        )
+
+        _, contact_mask = get_finger_touch_from_sensors(mjx_data.sensordata, self._finger_touch_adr)
+
+                
+        total, new_reward_state, info = grasp_reward(
+            state=env_state.reward_state,
+            finger_positions=finger_pos,
+            object_position=obj_pos,
+            object_linear_velocity=obj_linvel,
+            finger_contact_mask=contact_mask,
+            actions=smoothed,
+            previous_actions=env_state.previous_actions,
+            table_height=self.scene_config.table_height,
+            lift_target=self.reward_config.lift_target,
+            hold_velocity_threshold=self.reward_config.hold_velocity_threshold,
+            drop_penalty_value=self.reward_config.drop_penalty,
+            no_contact_idle_penalty=self.reward_config.no_contact_idle_penalty,
+            weights=self._reward_weights,
+            reach_tanh_k=self.reward_config.reach_tanh_k,
+            hold_height_k=self.reward_config.hold_height_smoothness_k,
+            hold_velocity_k=self.reward_config.hold_velocity_smoothness_k,
+            fingertip_weights=self.reward_config.fingertip_weights,
+            idle_grace_steps=self.reward_config.idle_grace_steps,
+        )
+
+                     
+        fell_off = obj_pos[2] < self.scene_config.table_height - 0.05
+        launched = jnp.linalg.norm(obj_pos) > 1.5
+        done = fell_off | launched
+
+        new_env_state = GraspEnvState(
+            reward_state=new_reward_state,
+            previous_actions=smoothed,
+            smoothed_actions=smoothed,
+            step_count=env_state.step_count + 1,
+        )
+
+        obs = self._get_obs_single(mjx_model, mjx_data, new_env_state)
+
+        return mjx_data, new_env_state, obs, total, done, info
+
+    def _get_obs_single(self, mjx_model: Any, mjx_data: Any, env_state: GraspEnvState) -> jax.Array:
+        nm = self._nm
+
+        joint_pos = mjx_data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]
+        joint_vel = mjx_data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]
+
+        obj_pos, obj_quat, obj_linvel, obj_angvel = get_object_state_jax(
+            mjx_data.qpos,
+            mjx_data.qvel,
+            mjx_data.xpos,
+            nm.object_body_id,
+            nm.obj_qpos_start,
+            nm.obj_qvel_start,
+        )
+
+        palm_pos = get_palm_position_jax(mjx_data.xpos, nm.palm_body_id)
+        rel_pos = obj_pos - palm_pos
+        fingertip_pos = get_fingertip_positions_jax(
+            mjx_data.site_xpos, self._fingertip_site_ids
+        ).flatten()
+
+        return jnp.concatenate(
+            [
+                joint_pos,
+                joint_vel,
+                obj_pos,
+                obj_quat,
+                obj_linvel,
+                obj_angvel,
+                rel_pos,
+                fingertip_pos,
+                env_state.previous_actions,
+            ]
+        )
+
+    @classmethod
+    def from_config(cls, config: MjxGraspTrainConfig) -> ShadowHandGraspMjxEnv:
+        return cls(
+            num_envs=config.num_envs,
+            seed=config.seed,
+            scene_config=config.scene_config,
+            reward_config=config.reward_config,
+            max_episode_steps=config.max_episode_steps,
+        )

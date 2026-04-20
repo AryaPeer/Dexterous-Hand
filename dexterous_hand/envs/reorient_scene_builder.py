@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import mujoco
 import numpy as np
@@ -7,16 +7,16 @@ from dexterous_hand.config import ReorientSceneConfig
 from dexterous_hand.envs.scene_builder import (
     ASSETS_DIR,
     FINGER_BODY_PREFIXES,
+    FINGER_TOUCH_SITE_NAMES,
     FINGERTIP_BODIES,
     FINGERTIP_OFFSETS,
     FINGERTIP_SITE_NAMES,
+    SensorMap,
 )
-from dexterous_hand.utils.mujoco_helpers import get_joint_qpos_qvel_range
-
+from dexterous_hand.utils.cpu.mujoco_helpers import get_joint_qpos_qvel_range
 
 @dataclass
 class ReorientNameMap:
-    """MuJoCo IDs for the reorientation scene."""
 
     hand_joint_ids: list[int]
     hand_actuator_ids: list[int]
@@ -25,7 +25,7 @@ class ReorientNameMap:
     hand_qvel_start: int
     hand_qvel_end: int
     n_actuators: int
-    ctrl_ranges: np.ndarray  # (n_actuators, 2)
+    ctrl_ranges: np.ndarray                    
 
     palm_body_id: int
     fingertip_site_ids: list[int]
@@ -35,18 +35,11 @@ class ReorientNameMap:
     cube_geom_id: int
     cube_qpos_start: int
     cube_qvel_start: int
-
+    sensor_map: SensorMap = field(default_factory=SensorMap.empty)
 
 def build_reorient_scene(
     config: ReorientSceneConfig | None = None,
 ) -> tuple[mujoco.MjModel, mujoco.MjData, ReorientNameMap]:
-    """Build reorientation scene: hand palm-up with a cube.
-
-    @param config: scene settings (defaults if None)
-    @type config: ReorientSceneConfig | None
-    @return: (model, data, name_map)
-    @rtype: tuple[mujoco.MjModel, mujoco.MjData, ReorientNameMap]
-    """
 
     if config is None:
         config = ReorientSceneConfig()
@@ -99,6 +92,26 @@ def build_reorient_scene(
             rgba=[1.0, 0.0, 0.0, 1.0],
         )
 
+                                                                       
+    for body_name, touch_site in zip(FINGERTIP_BODIES, FINGER_TOUCH_SITE_NAMES, strict=True):
+        body = spec.body(body_name)
+        offset = FINGERTIP_OFFSETS[body_name]
+        body.add_site(
+            name=touch_site,
+            pos=offset,
+            size=[0.012],
+            type=mujoco.mjtGeom.mjGEOM_SPHERE,
+            group=4,
+        )
+
+    for touch_site in FINGER_TOUCH_SITE_NAMES:
+        spec.add_sensor(
+            name=f"sensor_{touch_site}",
+            type=mujoco.mjtSensor.mjSENS_TOUCH,
+            objtype=mujoco.mjtObj.mjOBJ_SITE,
+            objname=touch_site,
+        )
+
     hs = config.cube_size
     cube_body = spec.worldbody.add_body(
         name="cube",
@@ -123,16 +136,14 @@ def build_reorient_scene(
 
     return model, data, name_map
 
-
 def _resolve_reorient_names(model: mujoco.MjModel) -> ReorientNameMap:
-    """Resolve MuJoCo IDs for the reorientation scene."""
 
-    # cube joint
+                
     cube_jnt_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "cube_freejoint")
     cube_qpos_start = model.jnt_qposadr[cube_jnt_id]
     cube_qvel_start = model.jnt_dofadr[cube_jnt_id]
 
-    # hand joints
+                 
     hand_joint_ids = []
     for jid in range(model.njnt):
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, jid)
@@ -140,21 +151,21 @@ def _resolve_reorient_names(model: mujoco.MjModel) -> ReorientNameMap:
             hand_joint_ids.append(jid)
 
     if hand_joint_ids:
-        hand_qpos_start, hand_qpos_end, hand_qvel_start, hand_qvel_end = (
-            get_joint_qpos_qvel_range(model, hand_joint_ids)
+        hand_qpos_start, hand_qpos_end, hand_qvel_start, hand_qvel_end = get_joint_qpos_qvel_range(
+            model, hand_joint_ids
         )
     else:
         hand_qpos_start = hand_qpos_end = 0
         hand_qvel_start = hand_qvel_end = 0
 
-    # actuators
+               
     hand_actuator_ids = list(range(model.nu))
     ctrl_ranges = model.actuator_ctrlrange[: model.nu].copy()
     n_actuators = model.nu
 
     palm_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "rh_palm")
 
-    # fingertips
+                
     fingertip_site_ids = [
         mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, name) for name in FINGERTIP_SITE_NAMES
     ]
@@ -183,9 +194,17 @@ def _resolve_reorient_names(model: mujoco.MjModel) -> ReorientNameMap:
                 finger_geom_ids_per_finger[finger_idx].add(gid)
                 break
 
-    # cube
+          
     cube_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "cube")
     cube_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "cube_geom")
+
+             
+    finger_touch_adr = []
+    for touch_site in FINGER_TOUCH_SITE_NAMES:
+        sid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, f"sensor_{touch_site}")
+        if sid >= 0:
+            finger_touch_adr.append(int(model.sensor_adr[sid]))
+    sensor_map = SensorMap(finger_touch_adr=finger_touch_adr, n_sensors=model.nsensor)
 
     return ReorientNameMap(
         hand_joint_ids=hand_joint_ids,
@@ -204,4 +223,5 @@ def _resolve_reorient_names(model: mujoco.MjModel) -> ReorientNameMap:
         cube_geom_id=cube_geom_id,
         cube_qpos_start=cube_qpos_start,
         cube_qvel_start=cube_qvel_start,
+        sensor_map=sensor_map,
     )

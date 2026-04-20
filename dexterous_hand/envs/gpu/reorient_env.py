@@ -1,0 +1,294 @@
+
+from __future__ import annotations
+
+from typing import Any, NamedTuple
+
+import jax
+import jax.numpy as jnp
+import mujoco
+import mujoco.mjx as mjx
+
+from dexterous_hand.config import MjxReorientTrainConfig, ReorientRewardConfig, ReorientSceneConfig
+from dexterous_hand.envs.gpu.mjx_vec_env import MjxVecEnv
+from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
+from dexterous_hand.rewards.gpu.reorient_reward import (
+    ReorientRewardState,
+    init_reorient_reward_state,
+    reorient_reward,
+)
+from dexterous_hand.utils.gpu.mjx_helpers import (
+    get_finger_touch_from_sensors,
+    get_fingertip_positions_jax,
+    get_object_state_jax,
+    get_palm_position_jax,
+)
+from dexterous_hand.utils.gpu.quaternion import (
+    quat_conjugate,
+    quat_multiply,
+    random_quaternion_within_angle,
+)
+
+class ReorientEnvState(NamedTuple):
+    reward_state: ReorientRewardState
+    previous_actions: jnp.ndarray
+    smoothed_actions: jnp.ndarray
+    target_quat: jnp.ndarray
+    max_target_angle: jnp.ndarray
+    targets_reached: jnp.ndarray
+    palm_z: jnp.ndarray
+    step_count: jnp.ndarray
+    key: jax.Array
+
+class ShadowHandReorientMjxEnv(MjxVecEnv):
+
+    def __init__(
+        self,
+        num_envs: int = 2048,
+        seed: int = 42,
+        scene_config: ReorientSceneConfig | None = None,
+        reward_config: ReorientRewardConfig | None = None,
+        max_episode_steps: int = 400,
+    ) -> None:
+        self.scene_config = scene_config or ReorientSceneConfig()
+        self.reward_config = reward_config or ReorientRewardConfig()
+        self._episode_limit = max_episode_steps
+        self._reward_weights = self.reward_config.weights
+
+        super().__init__(num_envs=num_envs, seed=seed)
+
+        _, _, self._nm = build_reorient_scene(self.scene_config)
+        self._init_qpos = jnp.array(self._cpu_data.qpos.copy())
+        self._finger_touch_adr = jnp.asarray(
+            self._nm.sensor_map.finger_touch_adr, dtype=jnp.int32
+        )
+        self._fingertip_site_ids = jnp.asarray(self._nm.fingertip_site_ids, dtype=jnp.int32)
+
+                                       
+        self._grasp_site_id = mujoco.mj_name2id(
+            self._cpu_model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site"
+        )
+
+        self._max_target_angle = jnp.array(0.5236)                  
+
+    def _build_model(self) -> mujoco.MjModel:
+        model, _, _ = build_reorient_scene(self.scene_config)
+        return model
+
+    def _obs_size(self) -> int:
+        return 115
+
+    def _action_size(self) -> int:
+        return int(self._cpu_model.nu)
+
+    @property
+    def _max_episode_steps(self) -> int:
+        return self._episode_limit
+
+    def set_curriculum_stage(self, max_angle: float) -> None:
+                                                                                 
+                                                                              
+                                                                                 
+                                               
+        self._max_target_angle = jnp.array(float(max_angle))
+        self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
+
+    def _reset_single(
+        self, mjx_model: Any, mjx_data: Any, key: jax.Array
+    ) -> tuple[Any, ReorientEnvState]:
+        nm = self._nm
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+
+        qpos = self._init_qpos
+
+                               
+        hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
+        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.01, maxval=0.01)
+        qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
+        qvel = jnp.zeros(mjx_model.nv)
+
+        mjx_data = mjx_data.replace(qpos=qpos, qvel=qvel)
+        mjx_data = mjx.forward(mjx_model, mjx_data)
+
+        palm_pos = get_palm_position_jax(mjx_data.xpos, nm.palm_body_id)
+        palm_z = palm_pos[2]
+
+                                    
+        cube_pos = mjx_data.site_xpos[self._grasp_site_id]
+        cube_noise = jax.random.uniform(k2, shape=(3,), minval=-0.004, maxval=0.004)
+        cube_pos = cube_pos + cube_noise
+
+        s = nm.cube_qpos_start
+        init_quat = random_quaternion_within_angle(k3, 0.1)
+        qpos = mjx_data.qpos.at[s : s + 3].set(cube_pos)
+        qpos = qpos.at[s + 3 : s + 7].set(init_quat)
+
+        mjx_data = mjx_data.replace(qpos=qpos)
+        mjx_data = mjx.forward(mjx_model, mjx_data)
+
+                       
+        target_quat = random_quaternion_within_angle(k4, self._max_target_angle)
+
+        init_cube_pos = mjx_data.xpos[nm.cube_body_id]
+
+        n_act = self._action_size()
+        env_state = ReorientEnvState(
+            reward_state=init_reorient_reward_state(init_cube_pos),
+            previous_actions=jnp.zeros(n_act),
+            smoothed_actions=jnp.zeros(n_act),
+            target_quat=target_quat,
+            max_target_angle=jnp.array(self._max_target_angle),
+            targets_reached=jnp.array(0, dtype=jnp.int32),
+            palm_z=palm_z,
+            step_count=jnp.array(0, dtype=jnp.int32),
+            key=key,
+        )
+
+        return mjx_data, env_state
+
+    def _step_single(
+        self,
+        mjx_model: Any,
+        mjx_data: Any,
+        env_state: ReorientEnvState,
+        action: jax.Array,
+    ) -> tuple[Any, ReorientEnvState, jax.Array, jax.Array, jax.Array, dict[str, jax.Array]]:
+        nm = self._nm
+        action = jnp.clip(action, -1.0, 1.0)
+
+        alpha = self.scene_config.action_smoothing_alpha
+        smoothed = (1.0 - alpha) * env_state.smoothed_actions + alpha * action
+
+        ctrl = self._ctrl_low + (smoothed + 1.0) / 2.0 * (self._ctrl_high - self._ctrl_low)
+        mjx_data = mjx_data.replace(ctrl=ctrl)
+
+        def _substep(data: Any, _: Any) -> tuple[Any, None]:
+            return mjx.step(mjx_model, data), None
+
+        mjx_data, _ = jax.lax.scan(_substep, mjx_data, None, length=self.scene_config.frame_skip)
+
+                    
+        fingertip_pos = get_fingertip_positions_jax(mjx_data.site_xpos, self._fingertip_site_ids)
+        cube_pos, cube_quat, cube_linvel, cube_angvel = get_object_state_jax(
+            mjx_data.qpos,
+            mjx_data.qvel,
+            mjx_data.xpos,
+            nm.cube_body_id,
+            nm.cube_qpos_start,
+            nm.cube_qvel_start,
+        )
+
+        _, contact_mask = get_finger_touch_from_sensors(mjx_data.sensordata, self._finger_touch_adr)
+
+        dropped = cube_pos[2] < env_state.palm_z - self.reward_config.drop_height_offset
+
+        total, new_reward_state, info, target_reached = reorient_reward(
+            state=env_state.reward_state,
+            cube_quat=cube_quat,
+            target_quat=env_state.target_quat,
+            cube_pos=cube_pos,
+            cube_linvel=cube_linvel,
+            finger_positions=fingertip_pos,
+            finger_contact_mask=contact_mask,
+            actions=smoothed,
+            previous_actions=env_state.previous_actions,
+            dropped=dropped,
+            weights=self._reward_weights,
+            success_threshold=self.reward_config.success_threshold,
+            success_hold_steps=self.reward_config.success_hold_steps,
+            drop_penalty_value=self.reward_config.drop_penalty,
+            contact_bonus_value=self.reward_config.contact_bonus,
+            no_contact_penalty_value=self.reward_config.no_contact_penalty,
+            min_contacts_for_rotation=self.reward_config.min_contacts_for_rotation,
+            angular_progress_clip=self.reward_config.angular_progress_clip,
+            orientation_success_k=self.reward_config.orientation_success_k,
+            tracking_k=self.reward_config.tracking_k,
+        )
+
+        new_key, subkey = jax.random.split(env_state.key)
+        new_target = jax.lax.cond(
+            target_reached,
+            lambda: random_quaternion_within_angle(subkey, env_state.max_target_angle),
+            lambda: env_state.target_quat,
+        )
+        new_targets_reached = jnp.where(
+            target_reached,
+            env_state.targets_reached + 1,
+            env_state.targets_reached,
+        )
+                                       
+        new_reward_state = jax.lax.cond(
+            target_reached,
+            lambda: init_reorient_reward_state(cube_pos),
+            lambda: new_reward_state,
+        )
+
+        done = dropped
+
+        new_env_state = ReorientEnvState(
+            reward_state=new_reward_state,
+            previous_actions=smoothed,
+            smoothed_actions=smoothed,
+            target_quat=new_target,
+            max_target_angle=env_state.max_target_angle,
+            targets_reached=new_targets_reached,
+            palm_z=env_state.palm_z,
+            step_count=env_state.step_count + 1,
+            key=new_key,
+        )
+
+        obs = self._get_obs_single(mjx_model, mjx_data, new_env_state)
+
+        return mjx_data, new_env_state, obs, total, done, info
+
+    def _get_obs_single(
+        self, mjx_model: Any, mjx_data: Any, env_state: ReorientEnvState
+    ) -> jax.Array:
+        nm = self._nm
+
+        joint_pos = mjx_data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]
+        joint_vel = mjx_data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]
+
+        cube_pos, cube_quat, cube_linvel, cube_angvel = get_object_state_jax(
+            mjx_data.qpos,
+            mjx_data.qvel,
+            mjx_data.xpos,
+            nm.cube_body_id,
+            nm.cube_qpos_start,
+            nm.cube_qvel_start,
+        )
+
+        fingertip_pos = get_fingertip_positions_jax(mjx_data.site_xpos, self._fingertip_site_ids)
+        fingertip_cube_dists = jnp.linalg.norm(fingertip_pos - cube_pos, axis=1)
+
+        err_quat = quat_multiply(quat_conjugate(cube_quat), env_state.target_quat)
+
+                                                                                     
+        touch_vals, _ = get_finger_touch_from_sensors(mjx_data.sensordata, self._finger_touch_adr)
+        face_contacts = jnp.concatenate([touch_vals > 0.0, jnp.zeros(1)]).astype(jnp.float32)
+
+        return jnp.concatenate(
+            [
+                joint_pos,      
+                joint_vel,      
+                cube_pos,     
+                cube_quat,     
+                cube_linvel,     
+                cube_angvel,     
+                env_state.target_quat,     
+                err_quat,     
+                fingertip_pos.flatten(),      
+                fingertip_cube_dists,     
+                face_contacts,     
+                env_state.previous_actions,      
+            ]
+        )
+
+    @classmethod
+    def from_config(cls, config: MjxReorientTrainConfig) -> ShadowHandReorientMjxEnv:
+        return cls(
+            num_envs=config.num_envs,
+            seed=config.seed,
+            scene_config=config.scene_config,
+            reward_config=config.reward_config,
+            max_episode_steps=config.max_episode_steps,
+        )

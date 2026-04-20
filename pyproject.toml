@@ -10,11 +10,34 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "gymnasium>=1.2.3",
-    "imageio>=2.37.3",
+    "imageio[ffmpeg]>=2.37.3",
     "mujoco>=3.6.0",
     "stable-baselines3[extra]>=2.7.1",
     "torch",
     "wandb>=0.25.1",
+]
+
+[project.optional-dependencies]
+# RunPod GPU MJX + SBX training. Not needed for local PC or RunPod CPU MuJoCo.
+mjx = [
+    "mujoco-mjx>=3.7.0",
+    "sbx-rl>=0.25.0",
+    "jax[cuda12]>=0.4.26",
+    "flax>=0.9.0",
+    "optax>=0.2.3",
+    "chex>=0.1.86",
+]
+
+[[tool.uv.index]]
+url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch-cpu"
+explicit = true
+
+# Windows pulls CPU torch from the pytorch-cpu index; Linux (RunPod) gets
+# default CUDA torch from PyPI. Same `uv sync` command works on both.
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
 ]
 
 [dependency-groups]
@@ -22,6 +45,7 @@ dev = [
     "mypy>=1.14",
     "pytest>=8.0",
     "ruff>=0.11",
+    "vulture>=2.13",
 ]
 
 [tool.ruff]
@@ -47,7 +71,7 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["mujoco.*", "stable_baselines3.*", "wandb.*", "gymnasium.*", "imageio.*"]
+module = ["mujoco.*", "stable_baselines3.*", "wandb.*", "gymnasium.*", "imageio.*", "jax.*", "jaxlib.*", "flax.*", "optax.*", "chex.*", "sbx.*", "mujoco.mjx.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -59,3 +83,9 @@ warn_return_any = false
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 markers = ["slow: tests requiring MuJoCo environments"]
+
+[tool.vulture]
+paths = ["dexterous_hand", "scripts", "main.py"]
+min_confidence = 70
+ignore_decorators = ["@pytest.fixture", "@abstractmethod"]
+exclude = ["tests/"]

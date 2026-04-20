@@ -1,0 +1,194 @@
+
+from typing import NamedTuple
+
+import jax.numpy as jnp
+
+from dexterous_hand.config import PegRewardWeights
+
+def _sigmoid(x: jnp.ndarray) -> jnp.ndarray:
+
+    return 1.0 / (1.0 + jnp.exp(-x))
+
+class PegRewardState(NamedTuple):
+
+    was_lifted: jnp.ndarray               
+    insertion_hold_steps: jnp.ndarray              
+    initial_peg_height: jnp.ndarray          
+    idle_steps: jnp.ndarray                                              
+
+def init_peg_reward_state(initial_peg_height: float | jnp.ndarray) -> PegRewardState:
+
+    return PegRewardState(
+        was_lifted=jnp.array(False),
+        insertion_hold_steps=jnp.array(0, dtype=jnp.int32),
+        initial_peg_height=jnp.asarray(initial_peg_height),
+        idle_steps=jnp.array(0, dtype=jnp.int32),
+    )
+
+def peg_reward(
+    state: PegRewardState,
+    stage: jnp.ndarray,
+    finger_positions: jnp.ndarray,
+    peg_position: jnp.ndarray,
+    peg_axis: jnp.ndarray,
+    hole_position: jnp.ndarray,
+    hole_axis: jnp.ndarray,
+    insertion_depth: jnp.ndarray,
+    contact_force_magnitude: jnp.ndarray,
+    finger_contact_mask: jnp.ndarray,
+    peg_height: jnp.ndarray,
+    peg_linvel: jnp.ndarray,
+    actions: jnp.ndarray,
+    previous_actions: jnp.ndarray,
+    weights: PegRewardWeights,
+    peg_length: float,
+    lift_target: float,
+    table_height: float,
+    drop_penalty_value: float,
+    complete_bonus: float,
+    force_threshold: float,
+    idle_stage0_penalty: float,
+    lateral_gate_k: float = 10.0,
+    idle_stage_cutoff: int = 3,
+    success_threshold: float = 0.9,
+    peg_hold_steps: int = 10,
+    reach_tanh_k: float = 5.0,
+    fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0),
+    depth_reward_scale: float = 10.0,
+    idle_grace_steps: int = 3,
+) -> tuple[jnp.ndarray, PegRewardState, dict[str, jnp.ndarray]]:
+
+    ft_weights = jnp.asarray(fingertip_weights)
+    n_contacts = jnp.sum(finger_contact_mask).astype(jnp.float32)
+
+           
+    dists = jnp.linalg.norm(finger_positions - peg_position, axis=1)
+    weighted_dist = jnp.sum(ft_weights * dists) / jnp.sum(ft_weights)
+    reach = 1.0 - jnp.tanh(reach_tanh_k * weighted_dist)
+
+                                                                  
+    thumb_contact = finger_contact_mask[0]
+    others_mask = finger_contact_mask.at[0].set(False)
+    others_count = jnp.sum(others_mask)
+
+    thumb_vec = finger_positions[0] - peg_position
+    other_vecs = (finger_positions - peg_position) * others_mask[:, None]
+    mean_other_vec = jnp.where(
+        others_count > 0,
+        other_vecs.sum(axis=0) / jnp.maximum(others_count, 1.0),
+        jnp.zeros(3),
+    )
+    thumb_n = jnp.linalg.norm(thumb_vec) + 1e-6
+    other_n = jnp.linalg.norm(mean_other_vec) + 1e-6
+    raw_opposition = -jnp.dot(thumb_vec / thumb_n, mean_other_vec / other_n)
+    opposition = jnp.where(
+        thumb_contact & (others_count >= 1),
+        jnp.maximum(raw_opposition, 0.0),
+        0.0,
+    )
+
+    contact_scale = jnp.minimum(n_contacts / 3.0, 1.0)
+    grasp = contact_scale * (0.3 + 0.7 * opposition)
+
+                                                                        
+    lift_height = jnp.maximum(peg_height - state.initial_peg_height, 0.0)
+    lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
+
+    was_lifted = state.was_lifted | (lift_height >= lift_target)
+
+    upward_bonus = jnp.maximum(peg_linvel[2], 0.0) * contact_scale
+
+                                                                              
+                                                                              
+                                                                               
+    lateral_dist = jnp.linalg.norm(peg_position[:2] - hole_position[:2])
+    axis_align = jnp.dot(peg_axis, hole_axis)
+    lateral_factor_align = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
+    peg_clearance = jnp.maximum(peg_height - table_height - peg_length * 0.5, 0.0)
+    align_weight = _sigmoid((peg_clearance - 0.02) * 150.0)
+    raw_align = axis_align * lateral_factor_align
+    align = jnp.maximum(raw_align, 0.0) * align_weight * contact_scale
+
+                                                                                  
+    lateral_factor_depth = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
+    insertion_fraction = jnp.clip(insertion_depth / peg_length, 0.0, 1.0)
+    depth_reward = depth_reward_scale * insertion_fraction * lateral_factor_depth
+
+                                            
+    new_hold = jnp.where(
+        insertion_fraction > success_threshold,
+        state.insertion_hold_steps + 1,
+        jnp.array(0, dtype=jnp.int32),
+    )
+    complete = jnp.where(new_hold >= peg_hold_steps, complete_bonus, 0.0)
+
+                   
+    force_excess = jnp.maximum(0.0, contact_force_magnitude - force_threshold)
+    force_penalty = -0.01 * force_excess**2
+
+          
+    dropped_now = was_lifted & (lift_height < 0.01)
+    regrasped = dropped_now & (n_contacts >= 2)
+    was_lifted = jnp.where(regrasped, False, was_lifted)
+    dropped_now = jnp.where(regrasped, False, dropped_now)
+    drop = jnp.where(dropped_now, drop_penalty_value, 0.0)
+
+                
+    smoothness = -5e-5 * jnp.sum((actions - previous_actions) ** 2)
+
+                                                                        
+                                                                        
+                                           
+    idle_active = (n_contacts == 0) & (stage < idle_stage_cutoff)
+    new_idle_steps = jnp.where(
+        idle_active, state.idle_steps + 1, jnp.array(0, dtype=jnp.int32)
+    )
+    idle_raw = jnp.where(new_idle_steps >= idle_grace_steps, idle_stage0_penalty, 0.0)
+    idle_penalty = weights.idle_stage0 * idle_raw
+
+    total = (
+        weights.reach * reach
+        + weights.grasp * grasp
+        + weights.opposition * opposition
+        + weights.lift * lift
+        + weights.upward * upward_bonus
+        + weights.align * align
+        + weights.depth * depth_reward
+        + weights.complete * complete
+        + weights.force * force_penalty
+        + weights.drop * drop
+        + weights.smoothness * smoothness
+        + idle_penalty
+    )
+
+    new_state = PegRewardState(
+        was_lifted=was_lifted,
+        insertion_hold_steps=new_hold,
+        initial_peg_height=state.initial_peg_height,
+        idle_steps=new_idle_steps,
+    )
+
+    info = {
+        "reward/reach": reach,
+        "reward/grasp": grasp,
+        "reward/grasp_quality": opposition,
+        "reward/lift": lift,
+        "reward/upward": upward_bonus,
+        "reward/align": align,
+        "reward/depth": depth_reward,
+        "reward/complete": complete,
+        "reward/force_penalty": force_penalty,
+        "reward/drop": drop,
+        "reward/smoothness": smoothness,
+        "reward/idle_stage0_penalty": idle_penalty,
+        "reward/total": total,
+        "metrics/stage": stage.astype(jnp.float32),
+        "metrics/num_finger_contacts": n_contacts,
+        "metrics/peg_height": peg_height,
+        "metrics/insertion_depth": insertion_depth,
+        "metrics/contact_force": contact_force_magnitude,
+        "metrics/lateral_distance": lateral_dist,
+        "metrics/insertion_hold_steps": new_hold.astype(jnp.float32),
+    }
+
+    return total, new_state, info

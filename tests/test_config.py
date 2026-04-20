@@ -15,7 +15,6 @@ from dexterous_hand.config import (
     TrainConfig,
 )
 
-
 class TestConfigDefaults:
     def test_scene_config(self):
         c = SceneConfig()
@@ -29,7 +28,9 @@ class TestConfigDefaults:
         w = RewardWeights()
         assert w.reaching == 1.0
         assert w.grasping == 3.0
-        assert w.upward == 2.0
+                                                                            
+                                                   
+        assert w.upward == 0.0
         assert w.opposition == 1.0
         assert w.action == 0.0
 
@@ -56,9 +57,10 @@ class TestConfigDefaults:
 
     def test_reorient_reward_config(self):
         c = ReorientRewardConfig()
-        assert c.success_threshold == 0.1
+        assert c.success_threshold == 0.2
         assert c.success_hold_steps == 25
         assert c.no_contact_penalty == -0.25
+        assert c.angular_progress_clip == 0.2
 
     def test_reorient_train_config(self):
         c = ReorientTrainConfig()
@@ -85,11 +87,20 @@ class TestConfigDefaults:
 
     def test_peg_reward_config(self):
         c = PegRewardConfig()
-        assert c.complete_bonus == 500.0
+                                                                              
+                                                                            
+                                                                             
+                                                     
+        assert c.complete_bonus == 600.0
         assert c.force_threshold == 5.0
         assert c.idle_stage0_penalty == -0.1
-        assert c.weights.upward == 2.0
+                                                                          
+                                                                               
+        assert c.weights.upward == 0.0
         assert c.weights.opposition == 1.0
+        assert c.lateral_gate_k == 10.0
+        assert c.peg_hold_steps == 10
+        assert c.success_threshold == 0.9
 
     def test_peg_train_config(self):
         c = PegTrainConfig()
@@ -101,7 +112,7 @@ class TestConfigDefaults:
         assert isinstance(c.reward_config, PegRewardConfig)
         assert c.curriculum_reference_timesteps == 40_000_000
         assert len(c.curriculum_stages) == 5
-        # curriculum stages are now 3-tuples: (step, clearance, p_pre_grasped)
+                                                                              
         for stage in c.curriculum_stages:
             assert len(stage) == 3
             step, clearance, p = stage
@@ -124,7 +135,6 @@ class TestConfigDefaults:
             assert len(stage) == 3
 
     def test_all_configs_instantiate(self):
-        """Every config class can be created with just defaults."""
 
         configs = [
             SceneConfig,

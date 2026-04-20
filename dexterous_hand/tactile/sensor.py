@@ -3,11 +3,9 @@ import numpy as np
 
 from dexterous_hand.config import TactileConfig
 from dexterous_hand.envs.scene_builder import FINGERTIP_BODIES, FINGERTIP_OFFSETS
-from dexterous_hand.utils.mujoco_helpers import distribute_contact_forces_to_taxels
-
+from dexterous_hand.utils.cpu.mujoco_helpers import distribute_contact_forces_to_taxels
 
 class TactileSensor:
-    """Simulated taxel grid on each fingertip (grid_size x grid_size per finger)."""
 
     def __init__(
         self,
@@ -15,15 +13,6 @@ class TactileSensor:
         config: TactileConfig,
         rng: np.random.Generator,
     ) -> None:
-        """Set up taxel grids and map fingertip geom IDs.
-
-        @param model: MuJoCo model
-        @type model: mujoco.MjModel
-        @param config: sensor config (grid size, noise, etc.)
-        @type config: TactileConfig
-        @param rng: random generator for noise
-        @type rng: np.random.Generator
-        """
 
         self.config = config
         self.rng = rng
@@ -39,7 +28,6 @@ class TactileSensor:
         self._setup(model)
 
     def _setup(self, model: mujoco.MjModel) -> None:
-        """Build taxel grids in local coords and map finger geom IDs."""
 
         half_span = (self.grid_size - 1) * self.config.grid_spacing / 2
         offsets = np.linspace(-half_span, half_span, self.grid_size)
@@ -61,7 +49,6 @@ class TactileSensor:
             self._taxel_local_positions.append(positions)
 
     def get_taxel_world_positions(self, data: mujoco.MjData) -> list[np.ndarray]:
-        """Local taxel grids -> world coordinates."""
 
         result: list[np.ndarray] = []
         for i, bid in enumerate(self._fingertip_body_ids):
@@ -75,15 +62,6 @@ class TactileSensor:
     def get_readings(
         self, model: mujoco.MjModel, data: mujoco.MjData
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Read sensors — current, previous, and change vectors (each 80,).
-
-        @param model: MuJoCo model
-        @type model: mujoco.MjModel
-        @param data: sim data with current contacts
-        @type data: mujoco.MjData
-        @return: (current, previous, change) each (80,)
-        @rtype: tuple[np.ndarray, np.ndarray, np.ndarray]
-        """
 
         world_positions = self.get_taxel_world_positions(data)
 
@@ -104,6 +82,5 @@ class TactileSensor:
         return current, previous, change
 
     def reset(self) -> None:
-        """Zero out previous readings."""
 
         self._previous_readings = np.zeros(self.n_taxels)
