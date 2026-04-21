@@ -1,7 +1,7 @@
 <mujoco model="right_shadow_hand">
   <compiler angle="radian" meshdir="assets" autolimits="true"/>
 
-  <option cone="elliptic" impratio="10"/>
+  <option cone="pyramidal" impratio="1"/>
 
   <default>
     <default class="right_hand">

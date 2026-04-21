@@ -21,16 +21,7 @@ class MjxVecEnv(VecEnv):
         self._num_envs = num_envs
         self._seed = seed
 
-
         self._cpu_model = self._build_model()
-
-
-
-
-        try:
-            self._cpu_model.opt.impratio = 1.0
-        except AttributeError:
-            pass
         self._cpu_data = mujoco.MjData(self._cpu_model)
         self._mjx_model = mjx.put_model(self._cpu_model)
 
