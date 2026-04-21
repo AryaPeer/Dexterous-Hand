@@ -63,12 +63,13 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         )
         self._fingertip_site_ids = jnp.asarray(self._nm.fingertip_site_ids, dtype=jnp.int32)
 
-                                       
         self._grasp_site_id = mujoco.mj_name2id(
             self._cpu_model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site"
         )
 
-        self._max_target_angle = jnp.array(0.5236)                  
+        self._max_target_angle = jnp.array(0.5236)
+
+        self._target_min_angle = float(self.scene_config.target_min_angle)
 
     def _build_model(self) -> mujoco.MjModel:
         model, _, _ = build_reorient_scene(self.scene_config)
@@ -125,8 +126,12 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         mjx_data = mjx_data.replace(qpos=qpos)
         mjx_data = mjx.forward(mjx_model, mjx_data)
 
-                       
-        target_quat = random_quaternion_within_angle(k4, self._max_target_angle)
+        min_angle_floor = jnp.minimum(
+            jnp.asarray(self._target_min_angle), 0.8 * self._max_target_angle
+        )
+        target_quat = random_quaternion_within_angle(
+            k4, self._max_target_angle, min_angle_rad=min_angle_floor
+        )
 
         init_cube_pos = mjx_data.xpos[nm.cube_body_id]
 
@@ -205,9 +210,14 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         )
 
         new_key, subkey = jax.random.split(env_state.key)
+        min_angle_floor = jnp.minimum(
+            jnp.asarray(self._target_min_angle), 0.8 * env_state.max_target_angle
+        )
         new_target = jax.lax.cond(
             target_reached,
-            lambda: random_quaternion_within_angle(subkey, env_state.max_target_angle),
+            lambda: random_quaternion_within_angle(
+                subkey, env_state.max_target_angle, min_angle_rad=min_angle_floor
+            ),
             lambda: env_state.target_quat,
         )
         new_targets_reached = jnp.where(
@@ -262,9 +272,26 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
 
         err_quat = quat_multiply(quat_conjugate(cube_quat), env_state.target_quat)
 
-                                                                                     
-        touch_vals, _ = get_finger_touch_from_sensors(mjx_data.sensordata, self._finger_touch_adr)
-        face_contacts = jnp.concatenate([touch_vals > 0.0, jnp.zeros(1)]).astype(jnp.float32)
+
+
+
+        touch_vals, contact_mask = get_finger_touch_from_sensors(
+            mjx_data.sensordata, self._finger_touch_adr
+        )
+        cube_rot = mjx_data.xmat[nm.cube_body_id].reshape(3, 3)
+        fingers_local = (fingertip_pos - cube_pos) @ cube_rot
+
+
+        axis_idx = jnp.argmax(jnp.abs(fingers_local), axis=1)
+        sign_pos = fingers_local[jnp.arange(5), axis_idx] > 0
+        face_idx = axis_idx * 2 + jnp.where(sign_pos, 0, 1)
+
+
+        one_hot = jax.nn.one_hot(face_idx, 6)
+
+
+        gated = one_hot * contact_mask[:, None].astype(jnp.float32)
+        face_contacts = jnp.clip(gated.sum(axis=0), 0.0, 1.0)
 
         return jnp.concatenate(
             [

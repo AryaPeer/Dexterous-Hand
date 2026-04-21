@@ -15,6 +15,7 @@ from dexterous_hand.curriculum.callbacks import (
     scale_stage_starts,
 )
 from dexterous_hand.envs.gpu.peg_env import ShadowHandPegMjxEnv
+from scripts.training._common import RewardInfoLoggerCallback, setup_sb3_logger
 
 def train(config: MjxPegTrainConfig) -> None:
 
@@ -70,8 +71,11 @@ def train(config: MjxPegTrainConfig) -> None:
         seed=config.seed,
     )
 
+    setup_sb3_logger(model, run_dir)
+
     callbacks = [
         curriculum_callback,
+        RewardInfoLoggerCallback(),
         CheckpointCallback(
             save_freq=max(500_000 // config.num_envs, 1),
             save_path=str(run_dir / "checkpoints"),

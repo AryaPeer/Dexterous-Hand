@@ -27,6 +27,7 @@ def quat_angular_distance(q1: jnp.ndarray, q2: jnp.ndarray) -> jnp.ndarray:
 def random_quaternion_within_angle(
     key: jax.Array,
     max_angle_rad: float | jax.Array,
+    min_angle_rad: float | jax.Array = 0.0,
 ) -> jnp.ndarray:
 
     k1, k2, k3 = jax.random.split(key, 3)
@@ -35,7 +36,8 @@ def random_quaternion_within_angle(
     r = jnp.sqrt(1.0 - z * z)
     axis = jnp.array([r * jnp.cos(phi), r * jnp.sin(phi), z])
 
-    angle = jax.random.uniform(k3, minval=0.0, maxval=max_angle_rad)
+    lo = jnp.minimum(jnp.asarray(min_angle_rad), jnp.asarray(max_angle_rad))
+    angle = jax.random.uniform(k3, minval=lo, maxval=max_angle_rad)
     half = angle / 2.0
     s = jnp.sin(half)
     return jnp.array([jnp.cos(half), axis[0] * s, axis[1] * s, axis[2] * s])

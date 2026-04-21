@@ -14,3 +14,10 @@ runs/
 wandb/
 videos/
 *.mp4
+
+# Tooling / IDE
+.claude/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store

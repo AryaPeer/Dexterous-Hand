@@ -330,13 +330,17 @@ class MjxPegTrainConfig:
     num_envs: int = 2048
     total_timesteps: int = 40_000_000
     learning_rate: float = 3e-4
-    batch_size: int = 256
-    buffer_size: int = 4_000_000
-    learning_starts: int = 200_000
+    batch_size: int = 1024
+    buffer_size: int = 1_000_000
+    learning_starts: int = 50_000
     tau: float = 0.005
     gamma: float = 0.99
     train_freq: int = 1
-    gradient_steps: int = 512                                                     
+
+
+
+
+    gradient_steps: int = 32
     ent_coef: str = "auto"
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     seed: int = 42
@@ -371,13 +375,13 @@ class MjxTactileTrainConfig:
     num_envs: int = 2048
     total_timesteps: int = 40_000_000
     learning_rate: float = 3e-4
-    batch_size: int = 256
-    buffer_size: int = 4_000_000
-    learning_starts: int = 200_000
+    batch_size: int = 1024
+    buffer_size: int = 1_000_000
+    learning_starts: int = 50_000
     tau: float = 0.005
     gamma: float = 0.99
     train_freq: int = 1
-    gradient_steps: int = 512                                                         
+    gradient_steps: int = 32
     ent_coef: str = "auto"
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     seed: int = 42

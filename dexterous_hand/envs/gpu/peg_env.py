@@ -93,15 +93,18 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         )
 
     def set_curriculum_params(self, clearance: float, p_pre_grasped: float) -> None:
-                                                                            
-                                                                       
-                                                                             
         self._p_pre_grasped = jnp.array(float(p_pre_grasped))
 
         clearance_f = float(clearance)
-        if abs(clearance_f - float(self.scene_config.clearance)) > 1e-9:
+        clearance_changed = abs(clearance_f - float(self.scene_config.clearance)) > 1e-9
+
+        if clearance_changed:
             self.scene_config.clearance = clearance_f
             self._cpu_model = self._build_model()
+            try:
+                self._cpu_model.opt.impratio = 1.0
+            except AttributeError:
+                pass
             self._cpu_data = mujoco.MjData(self._cpu_model)
             self._mjx_model = mjx.put_model(self._cpu_model)
 
@@ -111,12 +114,18 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
             self._rebuild_peg_caches()
 
-            self._mjx_data_batch = None
-            self._env_state_batch = None
+
+
 
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
         self._batched_step = jax.jit(jax.vmap(self._step_single, in_axes=(None, 0, 0, 0)))
         self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
+
+
+
+
+        if clearance_changed and self._mjx_data_batch is not None:
+            self.reset()
 
     def _reset_single(
         self, mjx_model: Any, mjx_data: Any, key: jax.Array

@@ -188,11 +188,16 @@ def build_peg_scene(
             objname=f"site_{wall_name}",
         )
 
+
+
+
+
+
+
     contact_kwargs = dict(
         contype=1,
         conaffinity=1,
         condim=4,
-        margin=0.001,
         solref=[0.02, 1.0],
         solimp=[0.9, 0.95, 0.001, 0.5, 2.0],
     )

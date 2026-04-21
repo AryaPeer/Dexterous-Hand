@@ -11,6 +11,7 @@ from wandb.integration.sb3 import WandbCallback
 
 from dexterous_hand.config import MjxGraspTrainConfig
 from dexterous_hand.envs.gpu.grasp_env import ShadowHandGraspMjxEnv
+from scripts.training._common import RewardInfoLoggerCallback, setup_sb3_logger
 
 def train(config: MjxGraspTrainConfig) -> None:
 
@@ -63,7 +64,10 @@ def train(config: MjxGraspTrainConfig) -> None:
         seed=config.seed,
     )
 
+    setup_sb3_logger(model, run_dir)
+
     callbacks = [
+        RewardInfoLoggerCallback(),
         CheckpointCallback(
             save_freq=max(500_000 // config.num_envs, 1),
             save_path=str(run_dir / "checkpoints"),
