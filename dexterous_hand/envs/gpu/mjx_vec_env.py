@@ -150,10 +150,13 @@ class MjxVecEnv(VecEnv):
 
                                                                             
             reset_obs = self._batched_get_obs(self._mjx_model, new_data, new_state)
-            obs_np = np.asarray(obs)
+
+
+
+            obs_np = np.array(obs)
             reset_obs_np = np.asarray(reset_obs)
         else:
-            obs_np = np.asarray(obs)
+            obs_np = np.array(obs)
             reset_obs_np = None
 
         self._mjx_data_batch = new_data
