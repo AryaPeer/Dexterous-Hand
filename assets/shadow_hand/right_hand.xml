@@ -98,7 +98,7 @@
       <inertial mass="3" pos="0 0 0.09" diaginertia="0.0138 0.0138 0.00744"/>
       <geom class="plastic_visual" mesh="forearm_0" material="gray"/>
       <geom class="plastic_visual" mesh="forearm_1"/>
-      <geom class="plastic_collision" size="0.04 0.08" pos="0 0 0.08" type="capsule"/>
+      <geom class="plastic_collision" type="mesh" mesh="forearm_collision"/>
       <geom class="plastic_collision" size="0.035 0.035 0.035" pos="0.01 0.0 0.181" quat="0.380188 0.924909 0 0"
         type="box"/>
       <body name="rh_wrist" pos="0.01 0 0.21301" quat="1 0 0 1">
@@ -257,8 +257,7 @@
                       diaginertia="2.37794e-06 2.27794e-06 1e-06"/>
                     <joint name="rh_THJ1" class="thdistal"/>
                     <geom class="plastic_visual" mesh="th_distal_pst"/>
-                    <geom class="plastic_collision" size="0.009 0.012" pos="0 0 0.012" type="capsule"/>
-                    <geom class="plastic_collision" size="0.011" pos="0 0 0.028" type="sphere"/>
+                    <geom class="plastic_collision" type="mesh" mesh="th_distal_pst"/>
                   </body>
                 </body>
               </body>
