@@ -66,8 +66,11 @@
         <default class="plastic_visual">
           <geom type="mesh" material="black" contype="0" conaffinity="0" group="2"/>
         </default>
+
+
+
         <default class="plastic_collision">
-          <geom group="3"/>
+          <geom group="3" contype="1" conaffinity="0"/>
         </default>
       </default>
     </default>
