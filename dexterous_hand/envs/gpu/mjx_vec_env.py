@@ -150,9 +150,6 @@ class MjxVecEnv(VecEnv):
 
                                                                             
             reset_obs = self._batched_get_obs(self._mjx_model, new_data, new_state)
-
-
-
             obs_np = np.array(obs)
             reset_obs_np = np.asarray(reset_obs)
         else:
@@ -179,8 +176,6 @@ class MjxVecEnv(VecEnv):
             for k, v in reward_info_np.items():
                 info[k] = v[i]
             if dones_np[i]:
-
-
                 info["terminal_observation"] = obs_np[i].copy()
                 if truncated_np[i]:
                     info["TimeLimit.truncated"] = True

@@ -67,14 +67,22 @@ class ShadowHandPegTactileMjxEnv(ShadowHandPegMjxEnv):
         env_state: PegTactileEnvState,
         action: jax.Array,
     ) -> tuple[Any, PegTactileEnvState, jax.Array, jax.Array, jax.Array, dict[str, jax.Array]]:
+        previous_tactile = env_state.previous_tactile
+
         mjx_data, new_peg_state, _, reward, done, info = super()._step_single(
             mjx_model, mjx_data, env_state.peg, action
         )
+
+        current_tactile = self._current_tactile(mjx_data)
         new_tactile_state = PegTactileEnvState(
             peg=new_peg_state,
-            previous_tactile=self._current_tactile(mjx_data),
+            previous_tactile=current_tactile,
         )
-        obs = self._get_obs_single(mjx_model, mjx_data, new_tactile_state)
+
+        base_obs = super()._get_obs_single(mjx_model, mjx_data, new_peg_state)
+        change = current_tactile - previous_tactile
+        obs = jnp.concatenate([base_obs, current_tactile, previous_tactile, change])
+
         return mjx_data, new_tactile_state, obs, reward, done, info
 
     def _get_obs_single(  # type: ignore[override]

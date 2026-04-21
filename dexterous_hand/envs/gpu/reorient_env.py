@@ -68,7 +68,6 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         )
 
         self._max_target_angle = jnp.array(0.5236)
-
         self._target_min_angle = float(self.scene_config.target_min_angle)
 
     def _build_model(self) -> mujoco.MjModel:
@@ -272,24 +271,16 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
 
         err_quat = quat_multiply(quat_conjugate(cube_quat), env_state.target_quat)
 
-
-
-
         touch_vals, contact_mask = get_finger_touch_from_sensors(
             mjx_data.sensordata, self._finger_touch_adr
         )
         cube_rot = mjx_data.xmat[nm.cube_body_id].reshape(3, 3)
         fingers_local = (fingertip_pos - cube_pos) @ cube_rot
 
-
         axis_idx = jnp.argmax(jnp.abs(fingers_local), axis=1)
         sign_pos = fingers_local[jnp.arange(5), axis_idx] > 0
         face_idx = axis_idx * 2 + jnp.where(sign_pos, 0, 1)
-
-
         one_hot = jax.nn.one_hot(face_idx, 6)
-
-
         gated = one_hot * contact_mask[:, None].astype(jnp.float32)
         face_contacts = jnp.clip(gated.sum(axis=0), 0.0, 1.0)
 

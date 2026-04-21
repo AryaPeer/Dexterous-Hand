@@ -110,15 +110,9 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
             self._rebuild_peg_caches()
 
-
-
-
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
         self._batched_step = jax.jit(jax.vmap(self._step_single, in_axes=(None, 0, 0, 0)))
         self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
-
-
-
 
         if clearance_changed and self._mjx_data_batch is not None:
             self.reset()
