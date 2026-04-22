@@ -194,15 +194,21 @@ def build_peg_scene(
 
 
 
-    contact_kwargs = dict(
-        contype=1,
-        conaffinity=1,
+    peg_kwargs = dict(
+        contype=3,
+        conaffinity=3,
+        condim=4,
+        solref=[0.02, 1.0],
+        solimp=[0.9, 0.95, 0.001, 0.5, 2.0],
+    )
+    wall_kwargs = dict(
+        contype=2,
+        conaffinity=2,
         condim=4,
         solref=[0.02, 1.0],
         solimp=[0.9, 0.95, 0.001, 0.5, 2.0],
     )
 
-                                                                                     
     peg_z = config.table_height + config.peg_half_length + config.peg_radius + 0.001
     peg_body = spec.worldbody.add_body(
         name="peg",
@@ -216,7 +222,7 @@ def build_peg_scene(
         mass=config.peg_mass,
         friction=list(config.peg_friction),
         rgba=[0.8, 0.2, 0.2, 1.0],
-        **contact_kwargs,
+        **peg_kwargs,
     )
 
     hole_x = config.hole_offset[0]
@@ -239,7 +245,7 @@ def build_peg_scene(
         size=[wt / 2, cr + wt, wh],
         pos=[cr + wt / 2, 0.0, -wh],
         rgba=wall_rgba,
-        **contact_kwargs,
+        **wall_kwargs,
     )
 
     hole_body.add_geom(
@@ -248,7 +254,7 @@ def build_peg_scene(
         size=[wt / 2, cr + wt, wh],
         pos=[-(cr + wt / 2), 0.0, -wh],
         rgba=wall_rgba,
-        **contact_kwargs,
+        **wall_kwargs,
     )
 
     hole_body.add_geom(
@@ -257,7 +263,7 @@ def build_peg_scene(
         size=[cr + wt, wt / 2, wh],
         pos=[0.0, cr + wt / 2, -wh],
         rgba=wall_rgba,
-        **contact_kwargs,
+        **wall_kwargs,
     )
 
     hole_body.add_geom(
@@ -266,7 +272,7 @@ def build_peg_scene(
         size=[cr + wt, wt / 2, wh],
         pos=[0.0, -(cr + wt / 2), -wh],
         rgba=wall_rgba,
-        **contact_kwargs,
+        **wall_kwargs,
     )
 
     hole_body.add_geom(
@@ -275,7 +281,7 @@ def build_peg_scene(
         size=[cr + wt, cr + wt, wt / 2],
         pos=[0.0, 0.0, -config.hole_depth],
         rgba=wall_rgba,
-        **contact_kwargs,
+        **wall_kwargs,
     )
 
                                            

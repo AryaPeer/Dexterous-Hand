@@ -88,25 +88,18 @@ class ReorientRewardWeights:
     fingertip_distance: float = 0.1
     action_penalty: float = 0.5
     action_rate_penalty: float = 0.5
-    contact_bonus: float = 0.1
+    contact_bonus: float = 0.5
     no_contact: float = 0.2
-                                                                          
-                                                                             
-                                                                           
-                                                                         
-               
-    position_stability: float = 2.0
+    position_stability: float = 0.5
 
 @dataclass
 class ReorientRewardConfig:
 
     weights: ReorientRewardWeights = field(default_factory=ReorientRewardWeights)
-                                                                         
-                                                                      
     success_threshold: float = 0.2
     success_hold_steps: int = 25
-    drop_penalty: float = -20.0
-    drop_height_offset: float = 0.05                                          
+    drop_penalty: float = -10.0
+    drop_height_offset: float = 0.05
     contact_bonus: float = 0.5
     no_contact_penalty: float = -0.25
     min_contacts_for_rotation: int = 2

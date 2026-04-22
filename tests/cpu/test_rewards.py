@@ -362,7 +362,7 @@ class TestReorientReward:
     def test_drop_penalty(self):
         calc = self.make_calc()
         _, info, _ = calc.compute(**self._default_kwargs(dropped=True))
-        assert_allclose(info["reward/cube_drop"], -20.0)
+        assert_allclose(info["reward/cube_drop"], -10.0)
 
     def test_velocity_penalty_only_linear(self):
         calc = self.make_calc()
