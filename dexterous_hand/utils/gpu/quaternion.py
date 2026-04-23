@@ -41,3 +41,30 @@ def random_quaternion_within_angle(
     half = angle / 2.0
     s = jnp.sin(half)
     return jnp.array([jnp.cos(half), axis[0] * s, axis[1] * s, axis[2] * s])
+
+
+def sample_target_quat_rel_to_cube(
+    key: jax.Array,
+    cube_quat: jnp.ndarray,
+    max_angle_rad: float | jax.Array,
+    min_angle_rad: float | jax.Array = 0.0,
+    n_candidates: int = 8,
+) -> jnp.ndarray:
+
+    # vmapped rejection sampling under jit: draw n_candidates targets
+    # (each constrained only in angle from identity), measure each one's
+    # angular distance to the current cube, pick the first that clears
+    # min_angle_rad. if none does, fall back to the candidate farthest
+    # from the cube (preserves the CPU 32-try fallback semantics).
+    keys = jax.random.split(key, n_candidates)
+    sample_one = lambda k: random_quaternion_within_angle(k, max_angle_rad)
+    candidates = jax.vmap(sample_one)(keys)
+    dists = jax.vmap(lambda q: quat_angular_distance(q, cube_quat))(candidates)
+
+    lo = jnp.minimum(jnp.asarray(min_angle_rad), jnp.asarray(max_angle_rad))
+    acceptable = dists >= lo
+    any_acceptable = jnp.any(acceptable)
+    first_ok_idx = jnp.argmax(acceptable.astype(jnp.int32))
+    farthest_idx = jnp.argmax(dists)
+    chosen_idx = jnp.where(any_acceptable, first_ok_idx, farthest_idx)
+    return candidates[chosen_idx]

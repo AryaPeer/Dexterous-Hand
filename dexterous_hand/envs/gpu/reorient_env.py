@@ -27,6 +27,7 @@ from dexterous_hand.utils.gpu.quaternion import (
     quat_conjugate,
     quat_multiply,
     random_quaternion_within_angle,
+    sample_target_quat_rel_to_cube,
 )
 
 class ReorientEnvState(NamedTuple):
@@ -131,8 +132,12 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         min_angle_floor = jnp.minimum(
             jnp.asarray(self._target_min_angle), 0.8 * self._max_target_angle
         )
-        target_quat = random_quaternion_within_angle(
-            k4, self._max_target_angle, min_angle_rad=min_angle_floor
+        cube_quat_now = mjx_data.qpos[s + 3 : s + 7]
+        target_quat = sample_target_quat_rel_to_cube(
+            k4,
+            cube_quat_now,
+            self._max_target_angle,
+            min_angle_rad=min_angle_floor,
         )
 
         init_cube_pos = mjx_data.xpos[nm.cube_body_id]
@@ -217,8 +222,11 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         )
         new_target = jax.lax.cond(
             target_reached,
-            lambda: random_quaternion_within_angle(
-                subkey, env_state.max_target_angle, min_angle_rad=min_angle_floor
+            lambda: sample_target_quat_rel_to_cube(
+                subkey,
+                cube_quat,
+                env_state.max_target_angle,
+                min_angle_rad=min_angle_floor,
             ),
             lambda: env_state.target_quat,
         )
