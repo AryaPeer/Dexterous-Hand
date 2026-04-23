@@ -207,13 +207,9 @@ class ShadowHandPegEnv(gym.Env):
             self.data, nm.peg_body_id, nm.hole_body_id, peg_half_length, peg_radius
         )
 
-
-
-
         wall_force_adr = nm.sensor_map.wall_force_adr
         per_wall_forces = np.asarray(self.data.sensordata[wall_force_adr], dtype=np.float64)
         contact_force_mag = float(np.sum(per_wall_forces))
-        reward_force_mag = contact_force_mag
 
                                                                                        
         fingers_on_peg = num_contacts >= 2
@@ -249,7 +245,7 @@ class ShadowHandPegEnv(gym.Env):
             hole_position=hole_pos,
             hole_axis=hole_axis,
             insertion_depth=insertion_depth,
-            contact_force_magnitude=reward_force_mag,
+            contact_force_magnitude=contact_force_mag,
             num_fingers_in_contact=num_contacts,
             contact_finger_indices=contact_finger_indices,
             peg_height=peg_height,
@@ -258,37 +254,8 @@ class ShadowHandPegEnv(gym.Env):
             previous_actions=self._previous_actions,
         )
 
-        extra_reward, extra_info = self._compute_step_extras()
-        reward += extra_reward
         self._previous_actions = action.astype(np.float64).copy()
 
-                                                         
-        rel_pos, ang_error = get_peg_hole_relative(self.data, nm.peg_body_id, nm.hole_body_id)
-
-        hole_quat = np.zeros(4)
-        mujoco.mju_mat2Quat(hole_quat, self.data.xmat[nm.hole_body_id].flatten())
-
-        fingertip_peg_dist = np.linalg.norm(finger_pos - peg_pos, axis=1)
-        rel_peg_to_palm = peg_pos - palm_pos
-
-        self._cached_obs = {
-            "peg_pos": peg_pos,
-            "peg_quat": peg_quat,
-            "peg_linvel": peg_linvel,
-            "peg_angvel": peg_angvel,
-            "hole_pos": hole_pos,
-            "hole_quat": hole_quat,
-            "rel_pos": rel_pos,
-            "ang_error": ang_error,
-            "fingertip_pos": finger_pos,
-            "fingertip_peg_dist": fingertip_peg_dist,
-            "rel_peg_to_palm": rel_peg_to_palm,
-            "insertion_depth": insertion_depth,
-            "per_wall_forces": per_wall_forces,
-            "contact_force_mag": contact_force_mag,
-        }
-
-                     
         terminated = False
         peg_length = peg_half_length * 2.0 + peg_radius * 2.0
 
@@ -304,71 +271,46 @@ class ShadowHandPegEnv(gym.Env):
         obs = self._get_obs()
         info = {
             "stage": self._stage,
-            **extra_info,
             **reward_info,
         }
         info["reward/total"] = float(reward)
 
         return obs, float(reward), terminated, False, info
 
-    def _compute_step_extras(self) -> tuple[float, dict[str, float]]:
-
-        return 0.0, {}
-
     def _get_obs(self) -> np.ndarray:
 
         nm = self.nm
 
-        joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]      
-        joint_vel = self.data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]      
+        joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]
+        joint_vel = self.data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]
 
-                                                                         
-        if hasattr(self, "_cached_obs") and self._cached_obs is not None:
-            c = self._cached_obs
-            peg_pos = c["peg_pos"]
-            peg_quat = c["peg_quat"]
-            peg_linvel = c["peg_linvel"]
-            peg_angvel = c["peg_angvel"]
-            hole_pos = c["hole_pos"]
-            hole_quat = c["hole_quat"]
-            rel_pos = c["rel_pos"]
-            ang_error = c["ang_error"]
-            fingertip_pos = c["fingertip_pos"]
-            fingertip_peg_dist = c["fingertip_peg_dist"]
-            rel_peg_to_palm = c["rel_peg_to_palm"]
-            insertion_depth = c["insertion_depth"]
-            per_wall_forces = c["per_wall_forces"]
-            contact_force_mag = c["contact_force_mag"]
-            self._cached_obs = None  # type: ignore[assignment]
+        peg_pos, peg_quat, peg_linvel, peg_angvel = get_object_state(
+            self.data, nm.peg_body_id, nm.peg_qpos_start, nm.peg_qvel_start
+        )
 
-        else:
-            peg_pos, peg_quat, peg_linvel, peg_angvel = get_object_state(
-                self.data, nm.peg_body_id, nm.peg_qpos_start, nm.peg_qvel_start
-            )
+        hole_pos = self.data.xpos[nm.hole_body_id].copy()
+        hole_quat = np.zeros(4)
+        mujoco.mju_mat2Quat(hole_quat, self.data.xmat[nm.hole_body_id].flatten())
 
-            hole_pos = self.data.xpos[nm.hole_body_id].copy()
-            hole_quat = np.zeros(4)
-            mujoco.mju_mat2Quat(hole_quat, self.data.xmat[nm.hole_body_id].flatten())
+        rel_pos, ang_error = get_peg_hole_relative(self.data, nm.peg_body_id, nm.hole_body_id)
 
-            rel_pos, ang_error = get_peg_hole_relative(self.data, nm.peg_body_id, nm.hole_body_id)
+        fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
+        fingertip_peg_dist = np.linalg.norm(fingertip_pos - peg_pos, axis=1)
 
-            fingertip_pos = get_fingertip_positions(self.data, nm.fingertip_site_ids)
-            fingertip_peg_dist = np.linalg.norm(fingertip_pos - peg_pos, axis=1)
+        palm_pos = get_palm_position(self.data, nm.palm_body_id)
+        rel_peg_to_palm = peg_pos - palm_pos
 
-            palm_pos = get_palm_position(self.data, nm.palm_body_id)
-            rel_peg_to_palm = peg_pos - palm_pos
+        insertion_depth = get_insertion_depth(
+            self.data,
+            nm.peg_body_id,
+            nm.hole_body_id,
+            self.scene_config.peg_half_length,
+            self.scene_config.peg_radius,
+        )
 
-            insertion_depth = get_insertion_depth(
-                self.data,
-                nm.peg_body_id,
-                nm.hole_body_id,
-                self.scene_config.peg_half_length,
-                self.scene_config.peg_radius,
-            )
-
-            wall_force_adr = nm.sensor_map.wall_force_adr
-            per_wall_forces = np.asarray(self.data.sensordata[wall_force_adr], dtype=np.float64)
-            contact_force_mag = float(np.sum(per_wall_forces))
+        wall_force_adr = nm.sensor_map.wall_force_adr
+        per_wall_forces = np.asarray(self.data.sensordata[wall_force_adr], dtype=np.float64)
+        contact_force_mag = float(np.sum(per_wall_forces))
 
         contact_forces = np.append(per_wall_forces, contact_force_mag)
 

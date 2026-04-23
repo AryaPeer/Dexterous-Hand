@@ -90,9 +90,6 @@ def grasp_reward(
                                                                         
     lifting = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
 
-    upward_bonus = jnp.maximum(object_linear_velocity[2], 0.0) * contact_scale
-
-                                                                                  
     obj_speed = jnp.linalg.norm(object_linear_velocity)
     height_gate = _sigmoid(hold_height_k * (lift_height - lift_target + 0.04))
     speed_gate = _sigmoid(hold_velocity_k * (hold_velocity_threshold - obj_speed))
@@ -121,7 +118,6 @@ def grasp_reward(
         + weights.grasping * grasping
         + weights.opposition * opposition
         + weights.lifting * lifting
-        + weights.upward * upward_bonus
         + weights.holding * holding
         + weights.drop * drop
         + weights.action_rate * action_rate_pen
@@ -139,7 +135,6 @@ def grasp_reward(
         "reward/grasping": grasping,
         "reward/grasp_quality": opposition,
         "reward/lifting": lifting,
-        "reward/upward": upward_bonus,
         "reward/holding": holding,
         "reward/drop": drop,
         "reward/idle_penalty": idle_penalty,

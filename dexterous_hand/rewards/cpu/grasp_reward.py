@@ -91,13 +91,6 @@ class GraspRewardCalculator:
         lifting = float(min(lift_height / self.lift_target, 1.5)) * contact_scale
         info["reward/lifting"] = lifting
 
-                                                                  
-        upward_bonus = max(float(object_linear_velocity[2]), 0.0) * contact_scale
-        info["reward/upward"] = upward_bonus
-
-                                                                            
-                                                                           
-                                                               
         obj_speed = float(np.linalg.norm(object_linear_velocity))
         height_gate = _sigmoid(self.hold_height_k * (lift_height - self.lift_target + 0.04))
         speed_gate = _sigmoid(self.hold_velocity_k * (self.hold_velocity_threshold - obj_speed))
@@ -138,7 +131,6 @@ class GraspRewardCalculator:
             + self.weights.grasping * grasping
             + self.weights.opposition * opposition
             + self.weights.lifting * lifting
-            + self.weights.upward * upward_bonus
             + self.weights.holding * holding
             + self.weights.drop * drop
             + self.weights.action_rate * action_rate_pen

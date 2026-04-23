@@ -282,7 +282,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
 
         err_quat = quat_multiply(quat_conjugate(cube_quat), env_state.target_quat)
 
-        return jnp.concatenate(
+        obs = jnp.concatenate(
             [
                 joint_pos,
                 joint_vel,
@@ -297,6 +297,10 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
                 env_state.previous_actions,
             ]
         )
+        assert obs.shape == (self._obs_size(),), (
+            f"reorient obs shape {obs.shape} != declared ({self._obs_size()},)"
+        )
+        return obs
 
     @classmethod
     def from_config(cls, config: MjxReorientTrainConfig) -> ShadowHandReorientMjxEnv:

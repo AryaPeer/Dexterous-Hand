@@ -221,7 +221,7 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
             mjx_data.site_xpos, self._fingertip_site_ids
         ).flatten()
 
-        return jnp.concatenate(
+        obs = jnp.concatenate(
             [
                 joint_pos,
                 joint_vel,
@@ -234,6 +234,10 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
                 env_state.previous_actions,
             ]
         )
+        assert obs.shape == (self._obs_size(),), (
+            f"grasp obs shape {obs.shape} != declared ({self._obs_size()},)"
+        )
+        return obs
 
     @classmethod
     def from_config(cls, config: MjxGraspTrainConfig) -> ShadowHandGraspMjxEnv:

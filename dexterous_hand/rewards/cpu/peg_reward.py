@@ -25,7 +25,6 @@ class PegRewardCalculator:
         self.depth_reward_scale = config.depth_reward_scale
         self.force_threshold = config.force_threshold
         self.idle_stage0_penalty = config.idle_stage0_penalty
-        self.min_contacts_for_align = config.min_contacts_for_align
         self.lateral_gate_k = config.lateral_gate_k
         self.idle_stage_cutoff = config.idle_stage_cutoff
         self.idle_grace_steps = config.idle_grace_steps
@@ -106,14 +105,6 @@ class PegRewardCalculator:
         if lift_height >= self.lift_target:
             self._was_lifted = True
 
-                                                                           
-        upward_bonus = max(float(peg_linvel[2]), 0.0) * contact_scale
-        info["reward/upward"] = upward_bonus
-
-                                                                                 
-                                                                                 
-                                                                               
-                                            
         lateral_dist = float(np.linalg.norm(peg_position[:2] - hole_position[:2]))
         axis_align = float(np.dot(peg_axis, hole_axis))
         lateral_factor_align = 1.0 - float(np.tanh(self.lateral_gate_k * lateral_dist))
@@ -178,7 +169,6 @@ class PegRewardCalculator:
             + self.weights.grasp * grasp
             + self.weights.opposition * opposition
             + self.weights.lift * lift
-            + self.weights.upward * upward_bonus
             + self.weights.align * align
             + self.weights.depth * depth_reward
             + self.weights.complete * complete

@@ -18,16 +18,6 @@ def quat_conjugate(q: np.ndarray) -> np.ndarray:
 
     return np.array([q[0], -q[1], -q[2], -q[3]])
 
-def quat_error(q_current: np.ndarray, q_target: np.ndarray) -> np.ndarray:
-
-    return quat_multiply(q_target, quat_conjugate(q_current))
-
-def quat_to_angular_distance(q_error: np.ndarray) -> float:
-
-    w = np.clip(np.abs(q_error[0]), 0.0, 1.0)
-
-    return float(2.0 * np.arccos(w))
-
 def quat_angular_distance(q1: np.ndarray, q2: np.ndarray) -> float:
 
     dot = np.clip(np.abs(np.dot(q1, q2)), 0.0, 1.0)

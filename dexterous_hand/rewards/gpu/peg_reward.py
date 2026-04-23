@@ -96,9 +96,7 @@ def peg_reward(
 
     was_lifted = state.was_lifted | (lift_height >= lift_target)
 
-    upward_bonus = jnp.maximum(peg_linvel[2], 0.0) * contact_scale
 
-                                                                              
                                                                               
                                                                                
     lateral_dist = jnp.linalg.norm(peg_position[:2] - hole_position[:2])
@@ -151,7 +149,6 @@ def peg_reward(
         + weights.grasp * grasp
         + weights.opposition * opposition
         + weights.lift * lift
-        + weights.upward * upward_bonus
         + weights.align * align
         + weights.depth * depth_reward
         + weights.complete * complete
@@ -173,7 +170,6 @@ def peg_reward(
         "reward/grasp": grasp,
         "reward/grasp_quality": opposition,
         "reward/lift": lift,
-        "reward/upward": upward_bonus,
         "reward/align": align,
         "reward/depth": depth_reward,
         "reward/complete": complete,

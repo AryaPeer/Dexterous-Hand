@@ -26,11 +26,7 @@ class TestConfigDefaults:
         w = RewardWeights()
         assert w.reaching == 1.0
         assert w.grasping == 3.0
-                                                                            
-                                                   
-        assert w.upward == 0.0
         assert w.opposition == 1.0
-        assert w.action == 0.0
 
     def test_reward_config(self):
         c = RewardConfig()
@@ -85,16 +81,9 @@ class TestConfigDefaults:
 
     def test_peg_reward_config(self):
         c = PegRewardConfig()
-                                                                              
-                                                                            
-                                                                             
-                                                     
         assert c.complete_bonus == 2000.0
         assert c.force_threshold == 15.0
         assert c.idle_stage0_penalty == -0.3
-                                                                          
-                                                                               
-        assert c.weights.upward == 0.0
         assert c.weights.opposition == 1.0
         assert c.lateral_gate_k == 10.0
         assert c.peg_hold_steps == 10

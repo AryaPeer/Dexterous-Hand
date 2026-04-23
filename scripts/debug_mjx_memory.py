@@ -1,7 +1,7 @@
 """Inspect per-env sizes of MJX Data fields for the grasp scene.
 
 Reports which fields dominate memory under vmap so we can target fixes.
-Run on the pod:
+Manual diagnostic — NOT wired into main.py, invoke directly:
 
     uv run python scripts/debug_mjx_memory.py
     uv run python scripts/debug_mjx_memory.py --num-envs 256   # bigger sample

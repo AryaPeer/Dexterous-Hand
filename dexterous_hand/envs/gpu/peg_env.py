@@ -117,10 +117,13 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             self._ctrl_high = jnp.array(self._cpu_model.actuator_ctrlrange[:n_act, 1])
 
             self._rebuild_peg_caches()
+            # obs shape depends on model; only re-jit obs when the model rebuilds
+            self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
 
+        # reset + step close over _p_pre_grasped (jax array attribute), so they
+        # must be re-jitted on every curriculum change even when clearance stays
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
         self._batched_step = jax.jit(jax.vmap(self._step_single, in_axes=(None, 0, 0, 0)))
-        self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
 
         if clearance_changed and self._mjx_data_batch is not None:
             self.reset()
@@ -360,27 +363,31 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         contact_force_mag = jnp.sum(per_wall_forces)
         contact_forces = jnp.concatenate([per_wall_forces, jnp.array([contact_force_mag])])
 
-        return jnp.concatenate(
+        obs = jnp.concatenate(
             [
-                joint_pos,      
-                joint_vel,      
-                peg_pos,     
-                peg_quat,     
-                peg_linvel,     
-                peg_angvel,     
-                hole_pos,     
-                hole_quat,     
-                rel_pos,     
-                ang_error,     
-                finger_pos.flatten(),      
-                fingertip_peg_dist,     
-                rel_peg_to_palm,     
-                jnp.array([insertion_depth]),     
-                contact_forces,     
-                jnp.asarray(env_state.stage, dtype=jnp.float32).reshape(1),     
-                env_state.previous_actions,      
+                joint_pos,
+                joint_vel,
+                peg_pos,
+                peg_quat,
+                peg_linvel,
+                peg_angvel,
+                hole_pos,
+                hole_quat,
+                rel_pos,
+                ang_error,
+                finger_pos.flatten(),
+                fingertip_peg_dist,
+                rel_peg_to_palm,
+                jnp.array([insertion_depth]),
+                contact_forces,
+                jnp.asarray(env_state.stage, dtype=jnp.float32).reshape(1),
+                env_state.previous_actions,
             ]
         )
+        assert obs.shape == (self._obs_size(),), (
+            f"peg obs shape {obs.shape} != declared ({self._obs_size()},)"
+        )
+        return obs
 
     @classmethod
     def from_config(cls, config: MjxPegTrainConfig) -> ShadowHandPegMjxEnv:

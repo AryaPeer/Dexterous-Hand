@@ -24,34 +24,22 @@ class RewardWeights:
     lifting: float = 3.0
     holding: float = 4.0
     drop: float = 1.0
-    action: float = 0.0
     action_rate: float = 0.3
     idle: float = 1.0
-                                                                           
-                                                                            
-                                                               
-    upward: float = 0.0
     opposition: float = 1.0
 
 @dataclass
 class RewardConfig:
 
     weights: RewardWeights = field(default_factory=RewardWeights)
-                           
     reach_tanh_k: float = 5.0
     lift_target: float = 0.1
     hold_velocity_threshold: float = 0.05
     hold_height_smoothness_k: float = 50.0
     hold_velocity_smoothness_k: float = 100.0
-                                                                      
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0)
     drop_penalty: float = -10.0
     no_contact_idle_penalty: float = -0.08
-    hold_bonus: float = 500.0
-                                                                               
-                                                                          
-                                                                           
-                                               
     idle_grace_steps: int = 3
 
 @dataclass
@@ -166,10 +154,6 @@ class PegRewardWeights:
     reach: float = 0.5
     grasp: float = 5.0
     lift: float = 6.0
-                                                                           
-                                                                          
-                                                                      
-    upward: float = 0.0
     opposition: float = 1.0
     align: float = 2.0
     depth: float = 3.0
@@ -177,7 +161,6 @@ class PegRewardWeights:
     force: float = 1.0
     drop: float = 1.0
     smoothness: float = 0.3
-    action_magnitude: float = 0.0
     idle_stage0: float = 1.0
 
 @dataclass
@@ -185,29 +168,14 @@ class PegRewardConfig:
 
     weights: PegRewardWeights = field(default_factory=PegRewardWeights)
     drop_penalty: float = -10.0
-                                                                                      
-                                                                                 
-                                                                               
-                                                                         
-                                                                 
     complete_bonus: float = 2000.0
     depth_reward_scale: float = 10.0
     force_threshold: float = 15.0
     idle_stage0_penalty: float = -0.3
-    min_contacts_for_align: int = 2
-    lift_target: float = 0.1                                          
-                                                                        
-                                                                         
-                             
+    lift_target: float = 0.1
     lateral_gate_k: float = 10.0
-                                                                           
-                                                                       
     idle_stage_cutoff: int = 3
-                                                                          
-                                                                   
     idle_grace_steps: int = 3
-                                                                         
-                                                                     
     success_threshold: float = 0.7
     peg_hold_steps: int = 10
     reach_tanh_k: float = 5.0

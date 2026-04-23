@@ -4,11 +4,9 @@ from numpy.testing import assert_allclose
 from dexterous_hand.utils.cpu.quaternion import (
     quat_angular_distance,
     quat_conjugate,
-    quat_error,
     quat_from_axis_angle,
     quat_multiply,
     quat_rotate_vector,
-    quat_to_angular_distance,
     quat_to_axis_angle,
     quat_to_rotation_matrix,
     random_quaternion,
@@ -60,17 +58,6 @@ class TestQuatConjugate:
         assert_allclose(conj[0], q[0], rtol=1e-6)
         assert_allclose(conj[1:], -q[1:], rtol=1e-6)
 
-class TestQuatError:
-    def test_same_orientation(self):
-        err = quat_error(Z90, Z90)
-        assert_allclose(err, IDENTITY, atol=1e-6)
-
-    def test_inverse_is_identity(self):
-        rng = np.random.default_rng(99)
-        q = random_quaternion(rng)
-        err = quat_error(q, q)
-        assert_allclose(err, IDENTITY, atol=1e-6)
-
 class TestQuatAngularDistance:
     def test_identity_zero(self):
         dist = quat_angular_distance(IDENTITY, IDENTITY)
@@ -120,14 +107,6 @@ class TestQuatAngularDistance:
             dbc = quat_angular_distance(b, c)
             dac = quat_angular_distance(a, c)
             assert dac <= dab + dbc + 1e-6
-
-class TestQuatToAngularDistance:
-    def test_identity_zero(self):
-        assert_allclose(quat_to_angular_distance(IDENTITY), 0.0, atol=1e-6)
-
-    def test_90_z(self):
-        err = quat_error(IDENTITY, Z90)
-        assert_allclose(quat_to_angular_distance(err), np.pi / 2, atol=1e-6)
 
 class TestRandomQuaternion:
     def test_unit_norm(self):
