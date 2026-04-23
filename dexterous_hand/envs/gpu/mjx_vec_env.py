@@ -90,14 +90,15 @@ class MjxVecEnv(VecEnv):
 
     def _noisy_obs(self, obs: jax.Array) -> np.ndarray:
         # additive Gaussian noise on policy-facing observations (additive DR,
-        # per AUDIT C1). pure no-op when obs_noise_std == 0.0. applied in
-        # jax on-device so the obs array stays device-resident until the final
-        # np.asarray conversion.
+        # per AUDIT C1). pure no-op when obs_noise_std == 0.0. np.array (not
+        # np.asarray) is required in both branches: np.asarray(jax_array) can
+        # zero-copy-wrap the immutable device buffer, and step_async mutates
+        # obs_np[i] = reset_obs_np[i]. commit d660f67 baked this in; keep it.
         if self._obs_noise_std <= 0.0:
-            return np.asarray(obs)
+            return np.array(obs)
         self._obs_noise_key, subkey = jax.random.split(self._obs_noise_key)
         noise = jax.random.normal(subkey, obs.shape) * self._obs_noise_std
-        return np.asarray(obs + noise)
+        return np.array(obs + noise)
 
     def reset(self) -> VecEnvObs:
         base_data = mjx.make_data(self._mjx_model)

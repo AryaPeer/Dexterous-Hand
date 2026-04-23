@@ -59,7 +59,7 @@ class ShadowHandGraspEnv(gym.Env):
                         
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
-        self._current_object_type: str = "cylinder"
+        self._current_object_type: str = "large_cube"
         self._init_qpos = self.data.qpos.copy()
         apply_flexion_bias(self._init_qpos, self.model)
 

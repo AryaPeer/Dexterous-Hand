@@ -2,7 +2,7 @@
 
 Training a simulated Shadow Hand to solve manipulation tasks with reinforcement learning. Built with MuJoCo 3, Stable-Baselines3, and Gymnasium.
 
-The hand has 24 degrees of freedom and learns three tasks: grasping a cylinder, reorienting a cube in hand, and peg-in-hole insertion.
+The hand has 24 degrees of freedom and learns three tasks: grasping a cube, reorienting a cube in hand, and peg-in-hole insertion.
 
 ## Requirements
 
@@ -48,7 +48,7 @@ uv run python main.py evaluate-peg
 
 ### Grasping (`ShadowHandGrasp-v0`)
 
-Pick a cylinder up from a table.
+Pick a cube up from a table.
 
 ### Reorientation (`ShadowHandReorient-v0`)
 
