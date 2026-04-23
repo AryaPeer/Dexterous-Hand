@@ -11,8 +11,6 @@ from dexterous_hand.envs.scene_builder import apply_flexion_bias
 from dexterous_hand.rewards.cpu.peg_reward import PegRewardCalculator
 from dexterous_hand.utils.cpu.mujoco_helpers import (
     get_body_axis,
-    get_contact_forces,
-    get_contact_forces_on_body,
     get_finger_contacts,
     get_fingertip_positions,
     get_insertion_depth,
@@ -67,7 +65,6 @@ class ShadowHandPegEnv(gym.Env):
         self._p_pre_grasped = 0.0                                                     
         self._clearance = self.scene_config.clearance
         self._init_qpos = self.data.qpos.copy()
-        self._wall_geom_set: set[int] = set(self.nm.hole_wall_geom_ids)
         self._initial_peg_height = self.scene_config.table_height
 
         apply_flexion_bias(self._init_qpos, self.model)
@@ -91,7 +88,6 @@ class ShadowHandPegEnv(gym.Env):
             self.scene_config.clearance = self._clearance
             self.model, self.data, self.nm = build_peg_scene(self.scene_config)
             self._init_qpos = self.data.qpos.copy()
-            self._wall_geom_set = set(self.nm.hole_wall_geom_ids)
 
         mujoco.mj_resetData(self.model, self.data)
 
@@ -189,15 +185,13 @@ class ShadowHandPegEnv(gym.Env):
             self.data, nm.peg_body_id, nm.hole_body_id, peg_half_length, peg_radius
         )
 
-        per_wall_forces, contact_force_mag = get_contact_forces(
-            self.model, self.data, nm.peg_geom_id, nm.hole_wall_geom_ids
-        )
 
-        peg_geom_set = {nm.peg_geom_id}
-        wrench = get_contact_forces_on_body(
-            self.model, self.data, peg_geom_set, self._wall_geom_set
-        )
-        reward_force_mag = float(np.linalg.norm(wrench[:3]))
+
+
+        wall_force_adr = nm.sensor_map.wall_force_adr
+        per_wall_forces = np.asarray(self.data.sensordata[wall_force_adr], dtype=np.float64)
+        contact_force_mag = float(np.sum(per_wall_forces))
+        reward_force_mag = contact_force_mag
 
                                                                                        
         fingers_on_peg = num_contacts >= 2
@@ -350,9 +344,9 @@ class ShadowHandPegEnv(gym.Env):
                 self.scene_config.peg_radius,
             )
 
-            per_wall_forces, contact_force_mag = get_contact_forces(
-                self.model, self.data, nm.peg_geom_id, nm.hole_wall_geom_ids
-            )
+            wall_force_adr = nm.sensor_map.wall_force_adr
+            per_wall_forces = np.asarray(self.data.sensordata[wall_force_adr], dtype=np.float64)
+            contact_force_mag = float(np.sum(per_wall_forces))
 
         contact_forces = np.append(per_wall_forces, contact_force_mag)
 

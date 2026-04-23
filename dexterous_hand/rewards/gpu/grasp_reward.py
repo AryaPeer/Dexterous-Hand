@@ -114,7 +114,7 @@ def grasp_reward(
     idle_raw = jnp.where(new_idle_steps >= idle_grace_steps, no_contact_idle_penalty, 0.0)
     idle_penalty = weights.idle * idle_raw
 
-    action_rate_pen = -5e-5 * jnp.sum((actions - previous_actions) ** 2)
+    action_rate_pen = -5e-3 * jnp.sum((actions - previous_actions) ** 2)
 
     total = (
         weights.reaching * reaching

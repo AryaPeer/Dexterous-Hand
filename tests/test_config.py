@@ -100,7 +100,7 @@ class TestConfigDefaults:
         assert c.weights.opposition == 1.0
         assert c.lateral_gate_k == 10.0
         assert c.peg_hold_steps == 10
-        assert c.success_threshold == 0.9
+        assert c.success_threshold == 0.7
 
     def test_peg_train_config(self):
         c = PegTrainConfig()

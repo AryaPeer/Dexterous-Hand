@@ -155,7 +155,7 @@ class PegRewardCalculator:
         info["reward/drop"] = drop
 
                                                                                        
-        smoothness = -5e-5 * float(np.sum((actions - previous_actions) ** 2))
+        smoothness = -5e-3 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/smoothness"] = smoothness
 
                                                                               

@@ -133,7 +133,7 @@ class GraspRewardCalculator:
         info["reward/idle_penalty"] = idle_penalty
 
                                                                                   
-        action_rate_pen = -5e-5 * float(np.sum((actions - previous_actions) ** 2))
+        action_rate_pen = -5e-3 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/action_rate_penalty"] = action_rate_pen
 
         total = (

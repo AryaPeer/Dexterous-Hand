@@ -50,7 +50,7 @@ def peg_reward(
     idle_stage0_penalty: float,
     lateral_gate_k: float = 10.0,
     idle_stage_cutoff: int = 3,
-    success_threshold: float = 0.9,
+    success_threshold: float = 0.7,
     peg_hold_steps: int = 10,
     reach_tanh_k: float = 5.0,
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0),
@@ -134,7 +134,7 @@ def peg_reward(
     drop = jnp.where(dropped_now, drop_penalty_value, 0.0)
 
                 
-    smoothness = -5e-5 * jnp.sum((actions - previous_actions) ** 2)
+    smoothness = -5e-3 * jnp.sum((actions - previous_actions) ** 2)
 
                                                                         
                                                                         

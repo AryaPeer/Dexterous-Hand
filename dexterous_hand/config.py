@@ -83,12 +83,12 @@ class ReorientRewardWeights:
     angular_progress: float = 2.5
     orientation_tracking: float = 3.0
     orientation_success: float = 4.0
-    cube_drop: float = 1.0
-    velocity_penalty: float = 1.5
-    fingertip_distance: float = 0.5
+    cube_drop: float = 5.0
+    velocity_penalty: float = 0.0
+    fingertip_distance: float = 0.0
     action_penalty: float = 0.5
     action_rate_penalty: float = 0.5
-    contact_bonus: float = 1.5
+    contact_bonus: float = 0.3
     no_contact: float = 0.2
     position_stability: float = 0.0
 
@@ -98,7 +98,7 @@ class ReorientRewardConfig:
     weights: ReorientRewardWeights = field(default_factory=ReorientRewardWeights)
     success_threshold: float = 0.2
     success_hold_steps: int = 25
-    drop_penalty: float = -10.0
+    drop_penalty: float = -20.0
     drop_height_offset: float = 0.05
     contact_bonus: float = 0.5
     no_contact_penalty: float = -0.25
@@ -201,7 +201,7 @@ class PegRewardConfig:
     idle_grace_steps: int = 3
                                                                          
                                                                      
-    success_threshold: float = 0.9
+    success_threshold: float = 0.7
     peg_hold_steps: int = 10
     reach_tanh_k: float = 5.0
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0)

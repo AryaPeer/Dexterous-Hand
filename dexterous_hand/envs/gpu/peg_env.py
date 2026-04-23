@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, NamedTuple
 
 import jax
@@ -142,8 +143,16 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         mjx_data = mjx_data.replace(qpos=qpos, qvel=qvel)
         mjx_data = mjx.forward(mjx_model, mjx_data)
 
-        table_peg_x = jax.random.uniform(k2, minval=-0.05, maxval=0.05)
-        table_peg_y = jax.random.uniform(k3, minval=-0.05, maxval=0.05)
+
+
+        min_r = float(self.scene_config.spawn_min_radius)
+        max_r = 0.05 * math.sqrt(2.0)
+        r = jax.random.uniform(k2, minval=min_r, maxval=max_r)
+        theta = jax.random.uniform(k3, minval=0.0, maxval=2.0 * math.pi)
+        hole_x = float(self.scene_config.hole_offset[0])
+        hole_y = float(self.scene_config.hole_offset[1])
+        table_peg_x = hole_x + r * jnp.cos(theta)
+        table_peg_y = hole_y + r * jnp.sin(theta)
         table_peg_z = (
             self.scene_config.table_height
             + self.scene_config.peg_half_length

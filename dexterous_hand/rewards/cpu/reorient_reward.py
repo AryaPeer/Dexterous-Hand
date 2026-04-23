@@ -91,10 +91,10 @@ class ReorientRewardCalculator:
         fingertip_distance = float(np.exp(-5.0 * np.mean(dists)))
         info["reward/fingertip_distance"] = fingertip_distance
 
-        action_penalty = -0.005 * float(np.sum(actions**2))
+        action_penalty = -0.002 * float(np.sum(actions**2))
         info["reward/action_penalty"] = action_penalty
 
-        action_rate_penalty = -0.002 * float(np.sum((actions - previous_actions) ** 2))
+        action_rate_penalty = -0.001 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/action_rate_penalty"] = action_rate_penalty
 
         contact_raw = self.contact_bonus_value * min(num_fingers_in_contact / 3.0, 1.0)
