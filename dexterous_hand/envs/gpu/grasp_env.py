@@ -42,13 +42,14 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
         scene_config: SceneConfig | None = None,
         reward_config: RewardConfig | None = None,
         max_episode_steps: int = 200,
+        obs_noise_std: float = 0.0,
     ) -> None:
         self.scene_config = scene_config or SceneConfig()
         self.reward_config = reward_config or RewardConfig()
         self._episode_limit = max_episode_steps
         self._reward_weights = self.reward_config.weights
 
-        super().__init__(num_envs=num_envs, seed=seed)
+        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std)
 
         _, _, self._nm = build_scene(self.scene_config)
 
@@ -247,4 +248,5 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
             scene_config=config.scene_config,
             reward_config=config.reward_config,
             max_episode_steps=config.max_episode_steps,
+            obs_noise_std=config.obs_noise_std,
         )

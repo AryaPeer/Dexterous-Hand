@@ -48,6 +48,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         scene_config: PegSceneConfig | None = None,
         reward_config: PegRewardConfig | None = None,
         max_episode_steps: int = 500,
+        obs_noise_std: float = 0.0,
     ) -> None:
         self.scene_config = scene_config or PegSceneConfig()
         self.reward_config = reward_config or PegRewardConfig()
@@ -56,7 +57,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
         self._p_pre_grasped = jnp.array(0.0)
 
-        super().__init__(num_envs=num_envs, seed=seed)
+        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std)
 
         self._rebuild_peg_caches()
 
@@ -397,4 +398,5 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             scene_config=config.scene_config,
             reward_config=config.reward_config,
             max_episode_steps=config.max_episode_steps,
+            obs_noise_std=config.obs_noise_std,
         )

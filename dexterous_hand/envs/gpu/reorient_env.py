@@ -50,13 +50,14 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         scene_config: ReorientSceneConfig | None = None,
         reward_config: ReorientRewardConfig | None = None,
         max_episode_steps: int = 400,
+        obs_noise_std: float = 0.0,
     ) -> None:
         self.scene_config = scene_config or ReorientSceneConfig()
         self.reward_config = reward_config or ReorientRewardConfig()
         self._episode_limit = max_episode_steps
         self._reward_weights = self.reward_config.weights
 
-        super().__init__(num_envs=num_envs, seed=seed)
+        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std)
 
         _, _, self._nm = build_reorient_scene(self.scene_config)
         init_qpos_np = self._cpu_data.qpos.copy()
@@ -310,4 +311,5 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             scene_config=config.scene_config,
             reward_config=config.reward_config,
             max_episode_steps=config.max_episode_steps,
+            obs_noise_std=config.obs_noise_std,
         )

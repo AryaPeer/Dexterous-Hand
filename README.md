@@ -58,6 +58,14 @@ Rotate a cube in hand to match a target orientation.
 
 Grasp a peg, align it with a hole, and insert it.
 
+## Scope
+
+This is a simulation-only benchmark. Observations include the ground-truth
+object pose and velocities, which would not be directly available on real
+hardware. Sim-to-real transfer would need either a pose estimator in front of
+the policy or an asymmetric actor-critic setup (full state to the value
+network, restricted observations to the policy).
+
 ## Testing
 
 Run the test suite with:

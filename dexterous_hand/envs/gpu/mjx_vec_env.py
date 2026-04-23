@@ -17,9 +17,11 @@ class MjxVecEnv(VecEnv):
         self,
         num_envs: int,
         seed: int = 42,
+        obs_noise_std: float = 0.0,
     ) -> None:
         self._num_envs = num_envs
         self._seed = seed
+        self._obs_noise_std = float(obs_noise_std)
 
         self._cpu_model = self._build_model()
         self._cpu_data = mujoco.MjData(self._cpu_model)
@@ -35,8 +37,9 @@ class MjxVecEnv(VecEnv):
 
         super().__init__(num_envs, observation_space, action_space)
 
-                   
         self._master_key = jax.random.PRNGKey(seed)
+        noise_key, self._master_key = jax.random.split(self._master_key)
+        self._obs_noise_key = noise_key
         self._env_keys = jax.random.split(self._master_key, num_envs)
 
                                           
@@ -85,8 +88,18 @@ class MjxVecEnv(VecEnv):
 
                                                                    
 
+    def _noisy_obs(self, obs: jax.Array) -> np.ndarray:
+        # additive Gaussian noise on policy-facing observations (additive DR,
+        # per AUDIT C1). pure no-op when obs_noise_std == 0.0. applied in
+        # jax on-device so the obs array stays device-resident until the final
+        # np.asarray conversion.
+        if self._obs_noise_std <= 0.0:
+            return np.asarray(obs)
+        self._obs_noise_key, subkey = jax.random.split(self._obs_noise_key)
+        noise = jax.random.normal(subkey, obs.shape) * self._obs_noise_std
+        return np.asarray(obs + noise)
+
     def reset(self) -> VecEnvObs:
-                                            
         base_data = mjx.make_data(self._mjx_model)
         batch_data = jax.tree.map(
             lambda x: jnp.broadcast_to(x, (self._num_envs,) + x.shape),
@@ -101,7 +114,7 @@ class MjxVecEnv(VecEnv):
         self._step_count = jnp.zeros(self._num_envs, dtype=jnp.int32)
 
         obs = self._batched_get_obs(self._mjx_model, batch_data, env_state)
-        return np.asarray(obs)
+        return self._noisy_obs(obs)
 
     def step_async(self, actions: np.ndarray) -> None:
         actions_jax = jnp.array(actions, dtype=jnp.float32)
@@ -148,12 +161,11 @@ class MjxVecEnv(VecEnv):
 
             self._step_count = jnp.where(needs_reset, 0, self._step_count)
 
-                                                                            
             reset_obs = self._batched_get_obs(self._mjx_model, new_data, new_state)
-            obs_np = np.array(obs)
-            reset_obs_np = np.asarray(reset_obs)
+            obs_np = self._noisy_obs(obs)
+            reset_obs_np = self._noisy_obs(reset_obs)
         else:
-            obs_np = np.array(obs)
+            obs_np = self._noisy_obs(obs)
             reset_obs_np = None
 
         self._mjx_data_batch = new_data

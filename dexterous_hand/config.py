@@ -105,7 +105,7 @@ class ReorientRewardConfig:
 class ReorientSceneConfig:
 
     mount_height: float = 0.4
-    cube_size: float = 0.02                                   
+    cube_size: float = 0.03
     cube_mass: float = 0.1
     cube_friction: tuple[float, float, float] = (1.0, 0.005, 0.001)
     action_smoothing_alpha: float = 0.4
@@ -252,6 +252,7 @@ class MjxGraspTrainConfig:
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
+    obs_noise_std: float = 0.005
     max_episode_steps: int = 200
     scene_config: SceneConfig = field(default_factory=SceneConfig)
     reward_config: RewardConfig = field(default_factory=RewardConfig)
@@ -275,6 +276,7 @@ class MjxReorientTrainConfig:
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
+    obs_noise_std: float = 0.005
     max_episode_steps: int = 400
     scene_config: ReorientSceneConfig = field(default_factory=ReorientSceneConfig)
     reward_config: ReorientRewardConfig = field(default_factory=ReorientRewardConfig)
@@ -295,7 +297,7 @@ def _mjx_peg_reward_config() -> PegRewardConfig:
 @dataclass
 class MjxPegTrainConfig:
 
-    num_envs: int = 2048
+    num_envs: int = 512
     total_timesteps: int = 40_000_000
     learning_rate: float = 3e-4
     batch_size: int = 1024
@@ -314,6 +316,7 @@ class MjxPegTrainConfig:
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
+    obs_noise_std: float = 0.005
     max_episode_steps: int = 500
     scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
     reward_config: PegRewardConfig = field(default_factory=_mjx_peg_reward_config)
