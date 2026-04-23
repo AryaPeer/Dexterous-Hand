@@ -93,7 +93,7 @@ class TestConfigDefaults:
                                                      
         assert c.complete_bonus == 600.0
         assert c.force_threshold == 5.0
-        assert c.idle_stage0_penalty == -0.1
+        assert c.idle_stage0_penalty == -0.3
                                                                           
                                                                                
         assert c.weights.upward == 0.0

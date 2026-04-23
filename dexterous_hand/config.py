@@ -85,12 +85,12 @@ class ReorientRewardWeights:
     orientation_success: float = 4.0
     cube_drop: float = 1.0
     velocity_penalty: float = 1.5
-    fingertip_distance: float = 0.1
+    fingertip_distance: float = 0.5
     action_penalty: float = 0.5
     action_rate_penalty: float = 0.5
-    contact_bonus: float = 0.5
+    contact_bonus: float = 1.5
     no_contact: float = 0.2
-    position_stability: float = 0.5
+    position_stability: float = 0.0
 
 @dataclass
 class ReorientRewardConfig:
@@ -156,8 +156,8 @@ class ReorientTrainConfig:
 @dataclass
 class PegRewardWeights:
 
-    reach: float = 1.0
-    grasp: float = 3.0
+    reach: float = 0.5
+    grasp: float = 5.0
     lift: float = 6.0
                                                                            
                                                                           
@@ -186,7 +186,7 @@ class PegRewardConfig:
     complete_bonus: float = 600.0
     depth_reward_scale: float = 10.0
     force_threshold: float = 5.0                                                
-    idle_stage0_penalty: float = -0.1
+    idle_stage0_penalty: float = -0.3
     min_contacts_for_align: int = 2
     lift_target: float = 0.1                                          
                                                                         
