@@ -6,7 +6,7 @@ import dexterous_hand.envs  # noqa: F401
 @pytest.mark.slow
 class TestReorientEnvSpaces:
     def test_observation_shape(self, reorient_env):
-        assert reorient_env.observation_space.shape == (115,)
+        assert reorient_env.observation_space.shape == (109,)
 
     def test_action_shape(self, reorient_env):
         assert reorient_env.action_space.shape == (20,)
@@ -19,7 +19,7 @@ class TestReorientEnvSpaces:
 class TestReorientEnvReset:
     def test_reset_obs_shape(self, reorient_env):
         obs, _ = reorient_env.reset(seed=42)
-        assert obs.shape == (115,)
+        assert obs.shape == (109,)
 
     def test_reset_obs_finite(self, reorient_env):
         obs, _ = reorient_env.reset(seed=42)
@@ -36,7 +36,7 @@ class TestReorientEnvStep:
         reorient_env.reset(seed=42)
         action = reorient_env.action_space.sample()
         obs, reward, terminated, truncated, info = reorient_env.step(action)
-        assert obs.shape == (115,)
+        assert obs.shape == (109,)
         assert isinstance(reward, float)
         assert isinstance(terminated, (bool, np.bool_))
         assert isinstance(truncated, (bool, np.bool_))

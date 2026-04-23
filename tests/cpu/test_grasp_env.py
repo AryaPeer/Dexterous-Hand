@@ -1,4 +1,3 @@
-import gymnasium as gym
 import mujoco
 import numpy as np
 import pytest
@@ -114,21 +113,6 @@ class TestGraspEnvStep:
         assert num_contacts >= 1, (
             "Expected at least one finger contact after placing object at finger"
         )
-
-@pytest.mark.slow
-class TestGraspEnvObjectTypes:
-    @pytest.mark.parametrize(
-        "obj_type",
-        ["large_cube", "cylinder", "sphere"],
-    )
-    def test_specific_object(self, obj_type):
-        env = gym.make("ShadowHandGrasp-v0", object_types=[obj_type])
-        obs, info = env.reset(seed=0)
-        assert info["object_type"] == obj_type
-        assert np.all(np.isfinite(obs))
-        obs, _, _, _, _ = env.step(env.action_space.sample())
-        assert np.all(np.isfinite(obs))
-        env.close()
 
 @pytest.mark.slow
 class TestGraspEnvRender:

@@ -124,3 +124,23 @@ class TestConfigDefaults:
         for cls in configs:
             obj = cls()
             assert obj is not None
+
+    def test_removed_fields_stay_removed(self):
+        # guards against accidental re-introduction of audit-removed fields;
+        # each name was deleted in phase 4 (config dead-field cleanup). if
+        # anyone adds one back by copy-paste, this test will flag it.
+        w = RewardWeights()
+        for name in ("action", "upward"):
+            assert not hasattr(w, name), f"RewardWeights.{name} should be removed"
+
+        c = RewardConfig()
+        assert not hasattr(c, "hold_bonus"), "RewardConfig.hold_bonus should be removed"
+
+        pw = PegRewardWeights()
+        for name in ("upward", "action_magnitude"):
+            assert not hasattr(pw, name), f"PegRewardWeights.{name} should be removed"
+
+        pc = PegRewardConfig()
+        assert not hasattr(pc, "min_contacts_for_align"), (
+            "PegRewardConfig.min_contacts_for_align should be removed"
+        )

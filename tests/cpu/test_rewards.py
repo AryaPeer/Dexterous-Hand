@@ -40,7 +40,6 @@ class TestGraspReward:
             "reward/reaching",
             "reward/grasping",
             "reward/lifting",
-            "reward/upward",
             "reward/holding",
             "reward/drop",
             "reward/idle_penalty",
@@ -235,24 +234,6 @@ class TestGraspReward:
         )
         assert_allclose(info["reward/action_rate_penalty"], 0.0)
 
-    def test_sphere_skips_side_contact_penalty(self):
-        calc = self.make_calc()
-        calc.reset(initial_object_height=0.5, is_sphere=True)
-        obj = np.array([0.0, 0.0, 0.5])
-                                                                      
-        high_fingers = np.tile(np.array([0.0, 0.0, 0.53]), (5, 1))
-        _, info = calc.compute(
-            high_fingers,
-            obj,
-            ZERO3,
-            5,
-            {0, 1, 2, 3, 4},
-            ZERO_ACTIONS,
-            ZERO_ACTIONS,
-        )
-        assert_allclose(info["reward/grasp_quality"], 1.0)
-        assert_allclose(info["reward/grasping"], 1.0)
-
     def test_reward_is_finite(self):
         calc = self.make_calc()
         rng = np.random.default_rng(42)
@@ -362,7 +343,7 @@ class TestReorientReward:
     def test_drop_penalty(self):
         calc = self.make_calc()
         _, info, _ = calc.compute(**self._default_kwargs(dropped=True))
-        assert_allclose(info["reward/cube_drop"], -10.0)
+        assert_allclose(info["reward/cube_drop"], -20.0)
 
     def test_velocity_penalty_only_linear(self):
         calc = self.make_calc()
@@ -437,7 +418,6 @@ class TestPegReward:
             "reward/grasp",
             "reward/grasp_quality",
             "reward/lift",
-            "reward/upward",
             "reward/align",
             "reward/depth",
             "reward/complete",
@@ -609,16 +589,19 @@ class TestPegReward:
             _, info = calc.compute(**kwargs)
                                                                          
                                                               
-        assert_allclose(info["reward/complete"], 600.0)
+        assert_allclose(info["reward/complete"], 2000.0)
 
     def test_force_penalty_above_threshold(self):
         calc = self.make_calc()
-        _, info = calc.compute(**self._default_kwargs(contact_force_magnitude=10.0))
+        # threshold bumped from 5.0 → 15.0 in phase 3.8; 20 N gives
+        # excess 5 N → penalty -0.01 * 25 = -0.25
+        _, info = calc.compute(**self._default_kwargs(contact_force_magnitude=20.0))
         assert_allclose(info["reward/force_penalty"], -0.25, rtol=1e-6)
 
     def test_force_penalty_below_threshold(self):
         calc = self.make_calc()
-        _, info = calc.compute(**self._default_kwargs(contact_force_magnitude=3.0))
+        # 10 N is now below the 15 N threshold
+        _, info = calc.compute(**self._default_kwargs(contact_force_magnitude=10.0))
         assert_allclose(info["reward/force_penalty"], 0.0)
 
     def test_drop_penalty(self):

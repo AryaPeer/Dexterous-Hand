@@ -216,8 +216,8 @@ class TestReorientParity:
             mask = np.zeros(5, dtype=bool)
             if n_contacts:
                 mask[rng.choice(5, size=n_contacts, replace=False)] = True
-            actions = rng.uniform(-1, 1, size=22)
-            prev_actions = rng.uniform(-1, 1, size=22)
+            actions = rng.uniform(-1, 1, size=20)
+            prev_actions = rng.uniform(-1, 1, size=20)
             dropped = bool(rng.integers(0, 2))
             initial_cube_pos = rng.uniform(-0.05, 0.05, size=3)
 
