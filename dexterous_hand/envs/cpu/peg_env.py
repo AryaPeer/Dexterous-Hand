@@ -7,7 +7,7 @@ import numpy as np
 
 from dexterous_hand.config import PegRewardConfig, PegSceneConfig
 from dexterous_hand.envs.peg_scene_builder import build_peg_scene
-from dexterous_hand.envs.scene_builder import apply_flexion_bias
+from dexterous_hand.envs.scene_builder import GRIP_BIAS, apply_flexion_bias
 from dexterous_hand.rewards.cpu.peg_reward import PegRewardCalculator
 from dexterous_hand.utils.cpu.mujoco_helpers import (
     get_body_axis,
@@ -62,17 +62,31 @@ class ShadowHandPegEnv(gym.Env):
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._stage = 0
         self._no_contact_grace = 0
-        self._p_pre_grasped = 0.0                                                     
+        self._p_pre_grasped = 0.0
         self._clearance = self.scene_config.clearance
-        self._init_qpos = self.data.qpos.copy()
         self._initial_peg_height = self.scene_config.table_height
 
-        apply_flexion_bias(self._init_qpos, self.model)
+        # match the MJX peg env: keep both TABLE_TASK_FLEXION_BIAS and GRIP_BIAS
+        # initial-qpos snapshots so pre-grasp spawns start with fingers already
+        # curled, table spawns start in a neutral pose.
+        self._init_qpos_table = self._build_biased_qpos(bias_map=None)
+        self._init_qpos_grip = self._build_biased_qpos(bias_map=GRIP_BIAS)
+        # back-compat alias; old code read self._init_qpos, use table variant
+        self._init_qpos = self._init_qpos_table
+        self._grasp_site_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site"
+        )
 
                    
         self._renderer: mujoco.Renderer | None = None
         if render_mode == "human":
             self._viewer: mujoco.viewer.Handle | None = None
+
+    def _build_biased_qpos(self, bias_map: dict[str, float] | None) -> np.ndarray:
+        qpos = self.data.qpos.copy()
+        if bias_map is not None:
+            apply_flexion_bias(qpos, self.model, bias_map=bias_map)
+        return qpos
 
     def reset(
         self,
@@ -83,27 +97,35 @@ class ShadowHandPegEnv(gym.Env):
 
         super().reset(seed=seed)
 
-                                                         
         if self._clearance != self.scene_config.clearance:
             self.scene_config.clearance = self._clearance
             self.model, self.data, self.nm = build_peg_scene(self.scene_config)
-            self._init_qpos = self.data.qpos.copy()
+            self._init_qpos_table = self._build_biased_qpos(bias_map=None)
+            self._init_qpos_grip = self._build_biased_qpos(bias_map=GRIP_BIAS)
+            self._init_qpos = self._init_qpos_table
+            self._grasp_site_id = mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site"
+            )
 
         mujoco.mj_resetData(self.model, self.data)
 
-                               
-        hand_qpos = self._init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
+        # select initial hand pose based on whether the curriculum pre-grasps
+        # this episode (matches the MJX peg env's _init_qpos_grip vs
+        # _init_qpos_table selection).
+        spawn_pre_grasped = self.np_random.random() < self._p_pre_grasped
+        init_qpos = self._init_qpos_grip if spawn_pre_grasped else self._init_qpos_table
+
+        hand_qpos = init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
         noise = self.np_random.uniform(-0.01, 0.01, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
         mujoco.mj_forward(self.model, self.data)
 
-                                                                                     
         s = self.nm.peg_qpos_start
-        spawn_pre_grasped = self.np_random.random() < self._p_pre_grasped
-
         if spawn_pre_grasped:
-            palm_pos = get_palm_position(self.data, self.nm.palm_body_id)
-            self.data.qpos[s : s + 3] = palm_pos + np.array([0.0, 0.0, -0.03], dtype=np.float64)
+            # match GPU peg env — place peg at the grasp_site's world position so
+            # the pre-curled fingers start in geometric contact with the peg.
+            peg_pos = self.data.site_xpos[self._grasp_site_id].copy()
+            self.data.qpos[s : s + 3] = peg_pos
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
         else:
             hole_xy = np.array(self.scene_config.hole_offset[:2], dtype=np.float64)

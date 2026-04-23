@@ -7,6 +7,7 @@ import numpy as np
 
 from dexterous_hand.config import ReorientRewardConfig, ReorientSceneConfig
 from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
+from dexterous_hand.envs.scene_builder import GRIP_BIAS, apply_flexion_bias
 from dexterous_hand.rewards.cpu.reorient_reward import ReorientRewardCalculator
 from dexterous_hand.utils.cpu.mujoco_helpers import (
     get_cube_face_contacts,
@@ -67,7 +68,11 @@ class ShadowHandReorientEnv(gym.Env):
         self._target_quat = np.array([1.0, 0.0, 0.0, 0.0])
         self._max_target_angle = 0.5236                                    
         self._targets_reached = 0
+        # match the MJX reorient env: GRIP_BIAS starts fingers pre-curled around
+        # the cube so a cpu-eval of a gpu-trained policy sees the same initial
+        # hand configuration it trained on.
         self._init_qpos = self.data.qpos.copy()
+        apply_flexion_bias(self._init_qpos, self.model, bias_map=GRIP_BIAS)
         self._palm_z: float = 0.0
         self._grasp_site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site")
 
