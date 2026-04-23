@@ -94,20 +94,20 @@ def grasp_reward(
 
                                                                                   
     obj_speed = jnp.linalg.norm(object_linear_velocity)
-    height_gate = _sigmoid(hold_height_k * (lift_height - lift_target))
+    height_gate = _sigmoid(hold_height_k * (lift_height - lift_target + 0.04))
     speed_gate = _sigmoid(hold_velocity_k * (hold_velocity_threshold - obj_speed))
     holding = height_gate * speed_gate * contact_scale
 
-    was_lifted = state.was_lifted | (lift_height >= lift_target)
+    was_lifted_next = state.was_lifted | (lift_height >= lift_target)
 
-                                                             
-    dropped_now = was_lifted & (lift_height < 0.01)
-    regrasped = dropped_now & (n_contacts >= 2)
-    was_lifted = jnp.where(regrasped, False, was_lifted)
-    dropped_now = jnp.where(regrasped, False, dropped_now)
-    drop = jnp.where(dropped_now, drop_penalty_value, 0.0)
+    # charge the penalty on every drop; clear was_lifted so a re-lift can
+    # be credited again, but do NOT zero the penalty on regrasp — the drop
+    # happened and we pay for it
+    just_dropped = state.was_lifted & (lift_height < 0.01)
+    drop = jnp.where(just_dropped, drop_penalty_value, 0.0)
+    was_lifted = jnp.where(just_dropped, False, was_lifted_next)
 
-    idle_active = (n_contacts == 0) & (lifting < 0.01)
+    idle_active = n_contacts == 0
     new_idle_steps = jnp.where(
         idle_active, state.idle_steps + 1, jnp.array(0, dtype=jnp.int32)
     )

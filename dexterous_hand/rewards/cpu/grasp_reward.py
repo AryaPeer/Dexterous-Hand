@@ -99,25 +99,26 @@ class GraspRewardCalculator:
                                                                            
                                                                
         obj_speed = float(np.linalg.norm(object_linear_velocity))
-        height_gate = _sigmoid(self.hold_height_k * (lift_height - self.lift_target))
+        height_gate = _sigmoid(self.hold_height_k * (lift_height - self.lift_target + 0.04))
         speed_gate = _sigmoid(self.hold_velocity_k * (self.hold_velocity_threshold - obj_speed))
         holding = height_gate * speed_gate * contact_scale
         info["reward/holding"] = holding
 
+        was_lifted_prev = self._was_lifted
         if lift_height >= self.lift_target:
             self._was_lifted = True
 
-                                                                          
-        dropped_now = self._was_lifted and lift_height < 0.01
-        if dropped_now and n_contacts >= 2:
+        # charge the penalty on every drop; clear was_lifted so a re-lift
+        # can be credited again, but do NOT zero the penalty on regrasp
+        just_dropped = was_lifted_prev and lift_height < 0.01
+        drop = self.drop_penalty_value if just_dropped else 0.0
+        if just_dropped:
             self._was_lifted = False
-            dropped_now = False
-        drop = self.drop_penalty_value if dropped_now else 0.0
         info["reward/drop"] = drop
 
                                                                                  
                                                           
-        idle_active = n_contacts == 0 and lifting < 0.01
+        idle_active = n_contacts == 0
         if idle_active:
             self._idle_steps += 1
         else:

@@ -103,7 +103,7 @@ class ReorientRewardCalculator:
 
                                                                               
                                                     
-        no_contact_ramp = max(1.0 - float(num_fingers_in_contact), 0.0)
+        no_contact_ramp = float(np.exp(-2.0 * num_fingers_in_contact))
         no_contact_raw = self.no_contact_penalty_value * no_contact_ramp
         no_contact_penalty = self.weights.no_contact * no_contact_raw
         info["reward/no_contact_penalty"] = no_contact_penalty

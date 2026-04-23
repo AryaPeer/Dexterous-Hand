@@ -89,8 +89,8 @@ class TestConfigDefaults:
                                                                             
                                                                              
                                                      
-        assert c.complete_bonus == 600.0
-        assert c.force_threshold == 5.0
+        assert c.complete_bonus == 2000.0
+        assert c.force_threshold == 15.0
         assert c.idle_stage0_penalty == -0.3
                                                                           
                                                                                

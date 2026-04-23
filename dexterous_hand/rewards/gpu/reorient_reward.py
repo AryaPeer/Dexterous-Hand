@@ -82,7 +82,7 @@ def reorient_reward(
     finger_contact_bonus = weights.contact_bonus * contact_raw
 
                                                                
-    no_contact_ramp = jnp.maximum(1.0 - n_contacts, 0.0)
+    no_contact_ramp = jnp.exp(-2.0 * n_contacts)
     no_contact_raw = no_contact_penalty_value * no_contact_ramp
     no_contact_penalty = weights.no_contact * no_contact_raw
 

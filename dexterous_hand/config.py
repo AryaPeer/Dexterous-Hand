@@ -42,7 +42,7 @@ class RewardConfig:
     lift_target: float = 0.1
     hold_velocity_threshold: float = 0.05
     hold_height_smoothness_k: float = 50.0
-    hold_velocity_smoothness_k: float = 20.0
+    hold_velocity_smoothness_k: float = 100.0
                                                                       
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0)
     drop_penalty: float = -10.0
@@ -190,9 +190,9 @@ class PegRewardConfig:
                                                                                
                                                                          
                                                                  
-    complete_bonus: float = 600.0
+    complete_bonus: float = 2000.0
     depth_reward_scale: float = 10.0
-    force_threshold: float = 5.0                                                
+    force_threshold: float = 15.0
     idle_stage0_penalty: float = -0.3
     min_contacts_for_align: int = 2
     lift_target: float = 0.1                                          
