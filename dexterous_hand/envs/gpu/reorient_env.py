@@ -11,6 +11,7 @@ import mujoco.mjx as mjx
 from dexterous_hand.config import MjxReorientTrainConfig, ReorientRewardConfig, ReorientSceneConfig
 from dexterous_hand.envs.gpu.mjx_vec_env import MjxVecEnv
 from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
+from dexterous_hand.envs.scene_builder import GRIP_BIAS, apply_flexion_bias
 from dexterous_hand.rewards.gpu.reorient_reward import (
     ReorientRewardState,
     init_reorient_reward_state,
@@ -57,7 +58,9 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         super().__init__(num_envs=num_envs, seed=seed)
 
         _, _, self._nm = build_reorient_scene(self.scene_config)
-        self._init_qpos = jnp.array(self._cpu_data.qpos.copy())
+        init_qpos_np = self._cpu_data.qpos.copy()
+        apply_flexion_bias(init_qpos_np, self._cpu_model, bias_map=GRIP_BIAS)
+        self._init_qpos = jnp.array(init_qpos_np)
         self._finger_touch_adr = jnp.asarray(
             self._nm.sensor_map.finger_touch_adr, dtype=jnp.int32
         )

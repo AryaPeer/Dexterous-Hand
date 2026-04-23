@@ -50,6 +50,25 @@ TABLE_TASK_FLEXION_BIAS: dict[str, float] = {
     "rh_THJ1": 1.0,
 }
 
+
+GRIP_BIAS: dict[str, float] = {
+    "rh_FFJ3": 1.5,
+    "rh_MFJ3": 1.5,
+    "rh_RFJ3": 1.5,
+    "rh_LFJ3": 1.5,
+    "rh_FFJ2": 1.4,
+    "rh_MFJ2": 1.4,
+    "rh_RFJ2": 1.4,
+    "rh_LFJ2": 1.4,
+    "rh_FFJ1": 1.4,
+    "rh_MFJ1": 1.4,
+    "rh_RFJ1": 1.4,
+    "rh_LFJ1": 1.4,
+    "rh_THJ4": 1.2,
+    "rh_THJ2": 0.5,
+    "rh_THJ1": 1.4,
+}
+
 def apply_flexion_bias(
     qpos: np.ndarray,
     model: mujoco.MjModel,

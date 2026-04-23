@@ -11,7 +11,7 @@ import mujoco.mjx as mjx
 from dexterous_hand.config import MjxPegTrainConfig, PegRewardConfig, PegSceneConfig
 from dexterous_hand.envs.gpu.mjx_vec_env import MjxVecEnv
 from dexterous_hand.envs.peg_scene_builder import build_peg_scene
-from dexterous_hand.envs.scene_builder import apply_flexion_bias
+from dexterous_hand.envs.scene_builder import GRIP_BIAS, apply_flexion_bias
 from dexterous_hand.rewards.gpu.peg_reward import (
     PegRewardState,
     init_peg_reward_state,
@@ -27,7 +27,6 @@ from dexterous_hand.utils.gpu.mjx_helpers import (
     get_peg_hole_relative_jax,
 )
 
-PRE_GRASP_OFFSET = jnp.array([0.0, 0.0, -0.03])
 
 class PegEnvState(NamedTuple):
     reward_state: PegRewardState
@@ -77,9 +76,17 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
     def _rebuild_peg_caches(self) -> None:
         _, _, self._nm = build_peg_scene(self.scene_config)
 
-        init_qpos = self._cpu_data.qpos.copy()
-        apply_flexion_bias(init_qpos, self._cpu_model)
-        self._init_qpos = jnp.array(init_qpos)
+        init_qpos_table = self._cpu_data.qpos.copy()
+        apply_flexion_bias(init_qpos_table, self._cpu_model)
+        self._init_qpos_table = jnp.array(init_qpos_table)
+
+        init_qpos_grip = self._cpu_data.qpos.copy()
+        apply_flexion_bias(init_qpos_grip, self._cpu_model, bias_map=GRIP_BIAS)
+        self._init_qpos_grip = jnp.array(init_qpos_grip)
+
+        self._grasp_site_id = mujoco.mj_name2id(
+            self._cpu_model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site"
+        )
 
         self._finger_touch_adr = jnp.asarray(
             self._nm.sensor_map.finger_touch_adr, dtype=jnp.int32
@@ -123,9 +130,10 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         nm = self._nm
         k1, k2, k3, k4, k5 = jax.random.split(key, 5)
 
-        qpos = self._init_qpos
+        spawn_pre_grasped = jax.random.uniform(k4) < self._p_pre_grasped
 
-                               
+        qpos = jnp.where(spawn_pre_grasped, self._init_qpos_grip, self._init_qpos_table)
+
         hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
         noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.01, maxval=0.01)
         qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
@@ -144,10 +152,8 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         )
         table_xyz = jnp.array([table_peg_x, table_peg_y, table_peg_z])
 
-        palm_pos = get_palm_position_jax(mjx_data.xpos, nm.palm_body_id)
-        pregrasp_xyz = palm_pos + PRE_GRASP_OFFSET
+        pregrasp_xyz = mjx_data.site_xpos[self._grasp_site_id]
 
-        spawn_pre_grasped = jax.random.uniform(k4) < self._p_pre_grasped
         peg_xyz = jnp.where(spawn_pre_grasped, pregrasp_xyz, table_xyz)
 
         s = nm.peg_qpos_start
