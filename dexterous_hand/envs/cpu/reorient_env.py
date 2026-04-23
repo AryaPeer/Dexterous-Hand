@@ -16,6 +16,7 @@ from dexterous_hand.utils.cpu.mujoco_helpers import (
     get_palm_position,
 )
 from dexterous_hand.utils.cpu.quaternion import (
+    quat_angular_distance,
     quat_conjugate,
     quat_multiply,
     random_quaternion_within_angle,
@@ -110,7 +111,7 @@ class ShadowHandReorientEnv(gym.Env):
         mujoco.mj_forward(self.model, self.data)
 
                                             
-        self._target_quat = self._sample_target_quat()
+        self._target_quat = self._sample_target_quat(cube_quat=init_quat)
         self._targets_reached = 0
         init_cube_pos = self.data.xpos[self.nm.cube_body_id].copy()
         self.reward_calculator.reset(initial_cube_pos=init_cube_pos)
@@ -174,7 +175,7 @@ class ShadowHandReorientEnv(gym.Env):
                                              
         if target_reached:
             self._targets_reached += 1
-            self._target_quat = self._sample_target_quat()
+            self._target_quat = self._sample_target_quat(cube_quat=cube_quat)
             self.reward_calculator.reset()
 
         terminated = dropped
@@ -188,12 +189,24 @@ class ShadowHandReorientEnv(gym.Env):
 
         return obs, float(reward), terminated, False, info
 
-    def _sample_target_quat(self) -> np.ndarray:
+    def _sample_target_quat(self, cube_quat: np.ndarray) -> np.ndarray:
+        # reject candidates whose angular distance from the CURRENT cube is
+        # below min_angle_floor — ensures the goal is meaningfully far from
+        # where the cube is right now, not just from identity. matters most
+        # after a mid-episode target reach (cube has rotated away from identity).
         min_angle_floor = min(self.scene_config.target_min_angle, 0.8 * self._max_target_angle)
-        return random_quaternion_within_angle(
-            self.np_random,
-            self._max_target_angle,
-            min_angle_rad=min_angle_floor,
+        best_quat: np.ndarray | None = None
+        best_dist = -1.0
+        for _ in range(32):
+            candidate = random_quaternion_within_angle(self.np_random, self._max_target_angle)
+            dist = float(quat_angular_distance(cube_quat, candidate))
+            if dist >= min_angle_floor:
+                return candidate
+            if dist > best_dist:
+                best_dist = dist
+                best_quat = candidate
+        return best_quat if best_quat is not None else random_quaternion_within_angle(
+            self.np_random, self._max_target_angle
         )
 
     def _get_obs(self) -> np.ndarray:
