@@ -55,13 +55,12 @@ class TestReorientEnvStep:
         _, _, _, _, info = reorient_env.step(reorient_env.action_space.sample())
         expected = [
             "reward/angular_progress",
-            "reward/orientation_tracking",
-            "reward/orientation_success",
+            "reward/orientation",
             "reward/cube_drop",
-            "reward/velocity_penalty",
-            "reward/fingertip_distance",
             "reward/action_penalty",
             "reward/action_rate_penalty",
+            "reward/finger_contact_bonus",
+            "reward/no_contact_penalty",
             "reward/total",
         ]
         for key in expected:
@@ -72,8 +71,7 @@ class TestReorientEnvStep:
         _, _, _, _, info = reorient_env.step(reorient_env.action_space.sample())
         for key in [
             "metrics/angular_distance",
-            "metrics/mean_fingertip_dist",
-            "metrics/cube_displacement",
+            "metrics/num_finger_contacts",
             "metrics/success_steps",
         ]:
             assert key in info, f"Missing key: {key}"

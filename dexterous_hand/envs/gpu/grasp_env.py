@@ -8,7 +8,12 @@ import jax.numpy as jnp
 import mujoco
 import mujoco.mjx as mjx
 
-from dexterous_hand.config import MjxGraspTrainConfig, RewardConfig, SceneConfig
+from dexterous_hand.config import (
+    DomainRandomization,
+    MjxGraspTrainConfig,
+    RewardConfig,
+    SceneConfig,
+)
 from dexterous_hand.envs.gpu.mjx_vec_env import MjxVecEnv
 from dexterous_hand.envs.scene_builder import (
     apply_flexion_bias,
@@ -43,13 +48,14 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
         reward_config: RewardConfig | None = None,
         max_episode_steps: int = 200,
         obs_noise_std: float = 0.0,
+        dr: DomainRandomization | None = None,
     ) -> None:
         self.scene_config = scene_config or SceneConfig()
         self.reward_config = reward_config or RewardConfig()
         self._episode_limit = max_episode_steps
         self._reward_weights = self.reward_config.weights
 
-        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std)
+        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std, dr=dr)
 
         _, _, self._nm = build_scene(self.scene_config)
 
@@ -249,4 +255,5 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
             reward_config=config.reward_config,
             max_episode_steps=config.max_episode_steps,
             obs_noise_std=config.obs_noise_std,
+            dr=config.dr,
         )

@@ -3,6 +3,17 @@ from dataclasses import dataclass, field
 import math
 
 @dataclass
+class DomainRandomization:
+    # per-env multipliers resampled on every reset. ranges match MJX Playground /
+    # IsaacGymEnvs defaults for ShadowHand manipulation. friction is multiplied
+    # on the sliding-friction slot only (geom_friction[:, 0]); torsional and
+    # rolling stay at spec. actuator gain is the first slot of gainprm only.
+    enabled: bool = True
+    mass_range: tuple[float, float] = (0.7, 1.3)
+    friction_range: tuple[float, float] = (0.7, 1.3)
+    actuator_gain_range: tuple[float, float] = (0.85, 1.15)
+
+@dataclass
 class SceneConfig:
 
     mount_x: float = -0.10
@@ -69,16 +80,17 @@ class TrainConfig:
 class ReorientRewardWeights:
 
     angular_progress: float = 2.5
-    orientation_tracking: float = 3.0
-    orientation_success: float = 4.0
+    # collapsed from (orientation_tracking=3.0, orientation_success=4.0) which
+    # were identical exp(-k·ang_dist) shapes differing only by
+    # soft_contact_scale. sum was 7.0, kept here so the peak at 2+ contacts
+    # matches the pre-collapse magnitude. contact gating is now a single
+    # knob (orientation_contact_alpha) on ReorientRewardConfig.
+    orientation: float = 7.0
     cube_drop: float = 5.0
-    velocity_penalty: float = 0.0
-    fingertip_distance: float = 0.0
     action_penalty: float = 0.5
     action_rate_penalty: float = 0.5
     contact_bonus: float = 0.3
     no_contact: float = 0.2
-    position_stability: float = 0.0
 
 @dataclass
 class ReorientRewardConfig:
@@ -91,15 +103,17 @@ class ReorientRewardConfig:
     contact_bonus: float = 0.5
     no_contact_penalty: float = -0.25
     min_contacts_for_rotation: int = 2
-                                                                           
-                                                                              
     angular_progress_clip: float = 0.2
     # k=5 makes exp(-k·ang_dist) collapse past ~1 rad (exp(-5)=0.007), so the
     # policy can't feel any orientation gradient once the curriculum opens up
     # beyond 30°. k=2 keeps the signal meaningful out to ~2 rad (exp(-4)=0.018
     # is still differentiable) so the 90° / 180° / π stages aren't reward-flat.
-    orientation_success_k: float = 2.0
     tracking_k: float = 2.0
+    # fraction of orientation reward that is unconditional (no contact gate).
+    # the remaining 1-alpha is scaled by min(n_contacts/min_contacts_for_rotation, 1).
+    # alpha = 3/7 ≈ 0.43 preserves the pre-collapse split where orientation_tracking
+    # (weight 3) was unconditional and orientation_success (weight 4) was contact-gated.
+    orientation_contact_alpha: float = 3.0 / 7.0
 
 @dataclass
 class ReorientSceneConfig:
@@ -191,7 +205,9 @@ class PegSceneConfig:
     table_half_size: float = 0.25
     clearance: float = 0.004                                    
     hole_depth: float = 0.06
-    hole_offset: list[float] = field(default_factory=lambda: [0.0, 0.0])                         
+    # tuple (not list) so the default is immutable; callers that need a numpy
+    # array construct one on the fly.
+    hole_offset: tuple[float, float] = (0.0, 0.0)
     spawn_min_radius: float = 0.04
     peg_radius: float = 0.008
     peg_half_length: float = 0.03
@@ -256,6 +272,7 @@ class MjxGraspTrainConfig:
     max_episode_steps: int = 200
     scene_config: SceneConfig = field(default_factory=SceneConfig)
     reward_config: RewardConfig = field(default_factory=RewardConfig)
+    dr: DomainRandomization = field(default_factory=DomainRandomization)
 
 @dataclass
 class MjxReorientTrainConfig:
@@ -280,6 +297,7 @@ class MjxReorientTrainConfig:
     max_episode_steps: int = 400
     scene_config: ReorientSceneConfig = field(default_factory=ReorientSceneConfig)
     reward_config: ReorientRewardConfig = field(default_factory=ReorientRewardConfig)
+    dr: DomainRandomization = field(default_factory=DomainRandomization)
     curriculum_reference_timesteps: int = 400_000_000
     curriculum_stages: list[tuple[int, float]] = field(
         default_factory=lambda: [
@@ -306,11 +324,10 @@ class MjxPegTrainConfig:
     tau: float = 0.005
     gamma: float = 0.99
     train_freq: int = 1
-
-
-
-
-    gradient_steps: int = 32
+    # gradient_steps × num_envs ≈ 4096 updates / env-iter, in the published
+    # SAC sweet-spot band (1k–4k). dropped from 32 × 512 = 16384 which
+    # saturated the critic and stalled learning. audit D6.
+    gradient_steps: int = 8
     ent_coef: str = "auto"
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     seed: int = 42
@@ -320,6 +337,7 @@ class MjxPegTrainConfig:
     max_episode_steps: int = 500
     scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
     reward_config: PegRewardConfig = field(default_factory=_mjx_peg_reward_config)
+    dr: DomainRandomization = field(default_factory=DomainRandomization)
     curriculum_reference_timesteps: int = 40_000_000
     curriculum_stages: list[tuple[int, float, float]] = field(
         default_factory=lambda: [

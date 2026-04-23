@@ -8,6 +8,9 @@ from dexterous_hand.curriculum.callbacks import (
 
 def _setup_callback(cb: ReorientCurriculumCallback | AssemblyCurriculumCallback) -> MagicMock:
 
+    # BaseCallback.training_env is a @property that resolves to
+    # self.model.get_env(), so mocking cb.model.get_env is sufficient — no
+    # need (or possibility) to set cb.training_env directly.
     mock_env = MagicMock()
     cb.locals = {}
     cb.globals = {}

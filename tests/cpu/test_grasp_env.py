@@ -26,10 +26,6 @@ class TestGraspEnvReset:
         obs, _ = grasp_env.reset(seed=42)
         assert np.all(np.isfinite(obs))
 
-    def test_reset_info_has_object_type(self, grasp_env):
-        _, info = grasp_env.reset(seed=42)
-        assert "object_type" in info
-
     def test_deterministic_seeding(self, grasp_env):
         obs1, _ = grasp_env.reset(seed=123)
         obs2, _ = grasp_env.reset(seed=123)

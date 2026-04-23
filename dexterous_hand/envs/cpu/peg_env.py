@@ -128,14 +128,16 @@ class ShadowHandPegEnv(gym.Env):
             self.data.qpos[s : s + 3] = peg_pos
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
         else:
+            # radial sampling: r ∈ [spawn_min_radius, 0.05·√2] around the hole.
+            # matches the GPU peg env distribution exactly; the previous
+            # square-rejection sampler gave CPU a tighter distribution than GPU.
             hole_xy = np.array(self.scene_config.hole_offset[:2], dtype=np.float64)
             min_r = self.scene_config.spawn_min_radius
-            peg_x, peg_y = 0.0, 0.0
-            for _ in range(100):
-                peg_x = float(self.np_random.uniform(-0.05, 0.05))
-                peg_y = float(self.np_random.uniform(-0.05, 0.05))
-                if np.linalg.norm([peg_x - hole_xy[0], peg_y - hole_xy[1]]) >= min_r:
-                    break
+            max_r = 0.05 * float(np.sqrt(2.0))
+            r = float(self.np_random.uniform(min_r, max_r))
+            theta = float(self.np_random.uniform(0.0, 2.0 * np.pi))
+            peg_x = float(hole_xy[0]) + r * float(np.cos(theta))
+            peg_y = float(hole_xy[1]) + r * float(np.sin(theta))
             peg_z = (
                 self.scene_config.table_height
                 + self.scene_config.peg_half_length
@@ -194,7 +196,6 @@ class ShadowHandPegEnv(gym.Env):
             nm.peg_geom_id,
         )
 
-        palm_pos = get_palm_position(self.data, nm.palm_body_id)
         peg_axis = get_body_axis(self.data, nm.peg_body_id)
         hole_axis = get_body_axis(self.data, nm.hole_body_id)
         hole_pos = self.data.xpos[nm.hole_body_id].copy()
@@ -256,17 +257,19 @@ class ShadowHandPegEnv(gym.Env):
 
         self._previous_actions = action.astype(np.float64).copy()
 
-        terminated = False
         peg_length = peg_half_length * 2.0 + peg_radius * 2.0
 
-        if (
+        insertion_success = bool(
             insertion_depth > self.reward_config.success_threshold * peg_length
             and self.reward_calculator._insertion_hold_steps >= self.reward_config.peg_hold_steps
-        ):
-            terminated = True
+        )
+        fell_off = bool(peg_pos[2] < self.scene_config.table_height - 0.1)
 
-        if peg_pos[2] < self.scene_config.table_height - 0.1:
-            terminated = True
+        # success is reported as truncation (episode ends but state has value,
+        # so SAC/PPO can bootstrap from terminal_observation). fell_off is
+        # real termination (no bootstrap). this separation is D2 from the audit.
+        terminated = fell_off
+        truncated = insertion_success and not fell_off
 
         obs = self._get_obs()
         info = {
@@ -274,8 +277,9 @@ class ShadowHandPegEnv(gym.Env):
             **reward_info,
         }
         info["reward/total"] = float(reward)
+        info["is_success"] = bool(insertion_success)
 
-        return obs, float(reward), terminated, False, info
+        return obs, float(reward), terminated, truncated, info
 
     def _get_obs(self) -> np.ndarray:
 

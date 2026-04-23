@@ -9,7 +9,12 @@ import jax.numpy as jnp
 import mujoco
 import mujoco.mjx as mjx
 
-from dexterous_hand.config import MjxPegTrainConfig, PegRewardConfig, PegSceneConfig
+from dexterous_hand.config import (
+    DomainRandomization,
+    MjxPegTrainConfig,
+    PegRewardConfig,
+    PegSceneConfig,
+)
 from dexterous_hand.envs.gpu.mjx_vec_env import MjxVecEnv
 from dexterous_hand.envs.peg_scene_builder import build_peg_scene
 from dexterous_hand.envs.scene_builder import GRIP_BIAS, apply_flexion_bias
@@ -49,6 +54,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         reward_config: PegRewardConfig | None = None,
         max_episode_steps: int = 500,
         obs_noise_std: float = 0.0,
+        dr: DomainRandomization | None = None,
     ) -> None:
         self.scene_config = scene_config or PegSceneConfig()
         self.reward_config = reward_config or PegRewardConfig()
@@ -57,7 +63,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
         self._p_pre_grasped = jnp.array(0.0)
 
-        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std)
+        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std, dr=dr)
 
         self._rebuild_peg_caches()
 
@@ -122,9 +128,10 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
 
         # reset + step close over _p_pre_grasped (jax array attribute), so they
-        # must be re-jitted on every curriculum change even when clearance stays
+        # must be re-jitted on every curriculum change even when clearance stays.
+        # _build_batched_step wraps step with the DR-apply layer via the base class.
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
-        self._batched_step = jax.jit(jax.vmap(self._step_single, in_axes=(None, 0, 0, 0)))
+        self._batched_step = self._build_batched_step()
 
         if clearance_changed and self._mjx_data_batch is not None:
             self.reset()
@@ -300,12 +307,16 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             idle_grace_steps=self.reward_config.idle_grace_steps,
         )
 
-                     
+
+        # success vs failure distinction. both set done, but mjx_vec_env reads
+        # info["is_success"] to decide truncation (bootstrap ok) vs termination
+        # (no bootstrap). audit D2.
         insertion_complete = (
             insertion_depth > self.reward_config.success_threshold * self._peg_length
         ) & (new_reward_state.insertion_hold_steps >= self.reward_config.peg_hold_steps)
         fell = peg_pos[2] < self.scene_config.table_height - 0.1
         done = insertion_complete | fell
+        info["is_success"] = insertion_complete.astype(jnp.float32)
 
         new_env_state = PegEnvState(
             reward_state=new_reward_state,
@@ -399,4 +410,5 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             reward_config=config.reward_config,
             max_episode_steps=config.max_episode_steps,
             obs_noise_std=config.obs_noise_std,
+            dr=config.dr,
         )

@@ -112,8 +112,10 @@ def grasp_reward(
     idle_penalty = weights.idle * idle_raw
 
     # penalizes smoothed-action delta, not raw-action delta: `actions` here
-    # is the env's smoothed output (same on CPU and MJX paths).
-    action_rate_pen = -5e-3 * jnp.sum((actions - previous_actions) ** 2)
+    # is the env's smoothed output (same on CPU and MJX paths). scale raised
+    # from -5e-3 to -0.5 (IsaacGymEnvs-equivalent) so the term has actual
+    # gradient magnitude vs the dense shaping terms.
+    action_rate_pen = -0.5 * jnp.sum((actions - previous_actions) ** 2)
 
     total = (
         weights.reaching * reaching

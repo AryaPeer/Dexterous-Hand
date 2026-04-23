@@ -102,6 +102,10 @@ class PegRewardCalculator:
         lift = float(min(lift_height / self.lift_target, 1.5)) * contact_scale
         info["reward/lift"] = lift
 
+        # snapshot the pre-step was_lifted so the drop predicate uses the STATE
+        # AT THE START of this step. latching happens after we've decided
+        # whether to charge the penalty. mirrors the grasp_reward fix.
+        was_lifted_prev = self._was_lifted
         if lift_height >= self.lift_target:
             self._was_lifted = True
 
@@ -137,16 +141,19 @@ class PegRewardCalculator:
         force_penalty = -0.01 * force_excess**2
         info["reward/force_penalty"] = force_penalty
 
-                                                                                  
-        dropped_now = self._was_lifted and lift_height < 0.01
-        if dropped_now and n_contacts >= 2:
+        # charge the drop penalty on every drop; clear was_lifted so a re-lift
+        # can be credited again, but do NOT zero the penalty on regrasp — the
+        # drop happened and we pay for it. mirrors the grasp_reward fix and
+        # closes the "drop-regrasp-drop" gaming loop.
+        just_dropped = was_lifted_prev and lift_height < 0.01
+        drop = self.drop_penalty_value if just_dropped else 0.0
+        if just_dropped:
             self._was_lifted = False
-            dropped_now = False
-        drop = self.drop_penalty_value if dropped_now else 0.0
         info["reward/drop"] = drop
 
-                                                                                       
-        smoothness = -5e-3 * float(np.sum((actions - previous_actions) ** 2))
+        # scale raised from -5e-3 to -0.5 (IsaacGymEnvs-equivalent) so the
+        # term actually penalizes jerky actions vs the O(1) shaping terms.
+        smoothness = -0.5 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/smoothness"] = smoothness
 
                                                                               

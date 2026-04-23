@@ -139,8 +139,8 @@ class TestReorientJax:
             no_contact_penalty_value=cfg.no_contact_penalty,
             min_contacts_for_rotation=cfg.min_contacts_for_rotation,
             angular_progress_clip=cfg.angular_progress_clip,
-            orientation_success_k=cfg.orientation_success_k,
             tracking_k=cfg.tracking_k,
+            orientation_contact_alpha=cfg.orientation_contact_alpha,
         )
 
     def test_jit_compiles(self):
@@ -178,8 +178,8 @@ class TestReorientJax:
                 no_contact_penalty_value=cfg.no_contact_penalty,
                 min_contacts_for_rotation=cfg.min_contacts_for_rotation,
                 angular_progress_clip=cfg.angular_progress_clip,
-                orientation_success_k=cfg.orientation_success_k,
                 tracking_k=cfg.tracking_k,
+                orientation_contact_alpha=cfg.orientation_contact_alpha,
             )
 
         state = init_reorient_reward_state(jnp.zeros(3))

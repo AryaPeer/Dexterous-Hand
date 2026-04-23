@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
 from gymnasium import spaces
 import jax
@@ -11,6 +11,30 @@ import mujoco.mjx as mjx
 import numpy as np
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
+from dexterous_hand.config import DomainRandomization
+
+
+class DRParams(NamedTuple):
+    # per-env multipliers applied to the shared mjx_model inside step.
+    # shapes match the model leaves: (nbody,), (ngeom,), (nu,). when DR is
+    # disabled these are all ones and _apply_dr is a no-op in outcome.
+    mass_mult: jnp.ndarray
+    friction_mult: jnp.ndarray
+    gain_mult: jnp.ndarray
+
+
+def _apply_dr(mjx_model: Any, dr_params: DRParams) -> Any:
+    # multiplicative jitter on body_mass, first slot of geom_friction (sliding),
+    # first slot of actuator_gainprm (linear gain). torsional/rolling friction
+    # and secondary gain slots left alone. model pytree is reused — .replace()
+    # creates a shallow copy with only the three leaves modified.
+    return mjx_model.replace(
+        body_mass=mjx_model.body_mass * dr_params.mass_mult,
+        geom_friction=mjx_model.geom_friction.at[:, 0].multiply(dr_params.friction_mult),
+        actuator_gainprm=mjx_model.actuator_gainprm.at[:, 0].multiply(dr_params.gain_mult),
+    )
+
+
 class MjxVecEnv(VecEnv):
 
     def __init__(
@@ -18,10 +42,12 @@ class MjxVecEnv(VecEnv):
         num_envs: int,
         seed: int = 42,
         obs_noise_std: float = 0.0,
+        dr: DomainRandomization | None = None,
     ) -> None:
         self._num_envs = num_envs
         self._seed = seed
         self._obs_noise_std = float(obs_noise_std)
+        self._dr_config = dr if dr is not None else DomainRandomization(enabled=False)
 
         self._cpu_model = self._build_model()
         self._cpu_data = mujoco.MjData(self._cpu_model)
@@ -30,8 +56,6 @@ class MjxVecEnv(VecEnv):
         n_obs = self._obs_size()
         n_act = self._action_size()
 
-                                                                               
-                                                                      
         observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(n_obs,), dtype=np.float32)
         action_space = spaces.Box(low=-1.0, high=1.0, shape=(n_act,), dtype=np.float32)
 
@@ -40,29 +64,41 @@ class MjxVecEnv(VecEnv):
         self._master_key = jax.random.PRNGKey(seed)
         noise_key, self._master_key = jax.random.split(self._master_key)
         self._obs_noise_key = noise_key
+        dr_key, self._master_key = jax.random.split(self._master_key)
+        self._dr_key = dr_key
         self._env_keys = jax.random.split(self._master_key, num_envs)
 
-                                          
         self._ctrl_low = jnp.array(self._cpu_model.actuator_ctrlrange[:n_act, 0])
         self._ctrl_high = jnp.array(self._cpu_model.actuator_ctrlrange[:n_act, 1])
 
-                                   
+        # reset / get_obs do not depend on mass/friction/gain (kinematics only
+        # at the reset state, and obs reads xpos/site_xpos). so DR is applied
+        # ONLY inside step. reset/get_obs keep the shared mjx_model via in_axes=None.
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
-        self._batched_step = jax.jit(jax.vmap(self._step_single, in_axes=(None, 0, 0, 0)))
         self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
+        self._batched_step = self._build_batched_step()
 
-                       
         self._mjx_data_batch = None
         self._env_state_batch = None
         self._step_count = jnp.zeros(num_envs, dtype=jnp.int32)
+        self._dr_params_batch: DRParams | None = None
 
-                                    
         self._pending_obs: np.ndarray | None = None
         self._pending_rewards: np.ndarray | None = None
         self._pending_dones: np.ndarray | None = None
         self._pending_infos: list[dict] | None = None
 
-                                                                   
+    def _build_batched_step(self) -> Any:
+        # wrap _step_single with a DR-applying layer at vmap time. the shared
+        # mjx_model stays closed over; per-env DRParams are vmapped with the
+        # rest of the batched args.
+        def _dr_step(
+            mjx_model: Any, dr_params: DRParams, data: Any, state: Any, action: jax.Array
+        ) -> Any:
+            local_model = _apply_dr(mjx_model, dr_params)
+            return self._step_single(local_model, data, state, action)
+
+        return jax.jit(jax.vmap(_dr_step, in_axes=(None, 0, 0, 0, 0)))
 
     def _build_model(self) -> mujoco.MjModel:
         raise NotImplementedError
@@ -86,13 +122,38 @@ class MjxVecEnv(VecEnv):
     def _max_episode_steps(self) -> int:
         raise NotImplementedError
 
-                                                                   
+    def _sample_dr_params_single(self, key: jax.Array) -> DRParams:
+        # sample one env's worth of DR multipliers. if DR disabled we return
+        # ones so _apply_dr is a functional no-op (wastes a few FLOPs but
+        # keeps the call path uniform).
+        nbody = int(self._cpu_model.nbody)
+        ngeom = int(self._cpu_model.ngeom)
+        nu = int(self._cpu_model.nu)
+        if not self._dr_config.enabled:
+            return DRParams(
+                mass_mult=jnp.ones(nbody),
+                friction_mult=jnp.ones(ngeom),
+                gain_mult=jnp.ones(nu),
+            )
+        k_m, k_f, k_g = jax.random.split(key, 3)
+        m_lo, m_hi = self._dr_config.mass_range
+        f_lo, f_hi = self._dr_config.friction_range
+        g_lo, g_hi = self._dr_config.actuator_gain_range
+        return DRParams(
+            mass_mult=jax.random.uniform(k_m, shape=(nbody,), minval=m_lo, maxval=m_hi),
+            friction_mult=jax.random.uniform(k_f, shape=(ngeom,), minval=f_lo, maxval=f_hi),
+            gain_mult=jax.random.uniform(k_g, shape=(nu,), minval=g_lo, maxval=g_hi),
+        )
+
+    def _sample_dr_params_batch(self, key: jax.Array) -> DRParams:
+        keys = jax.random.split(key, self._num_envs)
+        return jax.vmap(self._sample_dr_params_single)(keys)
 
     def _noisy_obs(self, obs: jax.Array) -> np.ndarray:
-        # additive Gaussian noise on policy-facing observations (additive DR,
-        # per AUDIT C1). pure no-op when obs_noise_std == 0.0. np.array (not
-        # np.asarray) is required in both branches: np.asarray(jax_array) can
-        # zero-copy-wrap the immutable device buffer, and step_async mutates
+        # additive Gaussian noise on policy-facing observations (obs-level DR).
+        # pure no-op when obs_noise_std == 0.0. np.array (not np.asarray) is
+        # required in both branches: np.asarray(jax_array) can zero-copy-wrap
+        # the immutable device buffer, and step_async mutates
         # obs_np[i] = reset_obs_np[i]. commit d660f67 baked this in; keep it.
         if self._obs_noise_std <= 0.0:
             return np.array(obs)
@@ -109,6 +170,10 @@ class MjxVecEnv(VecEnv):
 
         self._env_keys = jax.random.split(jax.random.fold_in(self._master_key, 0), self._num_envs)
 
+        # fresh DR multipliers for every env on full reset
+        self._dr_key, dr_subkey = jax.random.split(self._dr_key)
+        self._dr_params_batch = self._sample_dr_params_batch(dr_subkey)
+
         batch_data, env_state = self._batched_reset(self._mjx_model, batch_data, self._env_keys)
         self._mjx_data_batch = batch_data
         self._env_state_batch = env_state
@@ -122,17 +187,28 @@ class MjxVecEnv(VecEnv):
 
         new_data, new_state, obs, rewards, dones, reward_info = self._batched_step(
             self._mjx_model,
+            self._dr_params_batch,
             self._mjx_data_batch,
             self._env_state_batch,
             actions_jax,
         )
 
         self._step_count = self._step_count + 1
-        truncated = self._step_count >= self._max_episode_steps
-        truncated_only = truncated & ~dones
-        dones = dones | truncated
+        timed_out = self._step_count >= self._max_episode_steps
 
-                              
+        # success (if the env signals one via info) is treated as truncation
+        # so SAC bootstraps from the terminal obs — the task was accomplished
+        # and the reset state has real value. failure (fall) keeps dones=True
+        # with no truncated flag, so the critic gets V=0. audit D2.
+        is_success_jnp = reward_info.get("is_success") if reward_info is not None else None
+        if is_success_jnp is None:
+            is_success = jnp.zeros(self._num_envs, dtype=bool)
+        else:
+            is_success = is_success_jnp.astype(bool)
+
+        truncated_only = (timed_out & ~dones) | is_success
+        dones = dones | timed_out
+
         needs_reset = dones
         if jnp.any(needs_reset):
             self._env_keys = jax.vmap(
@@ -144,7 +220,21 @@ class MjxVecEnv(VecEnv):
 
             reset_data, reset_state = self._batched_reset(self._mjx_model, new_data, self._env_keys)
 
-                                                                             
+            # resample DR multipliers for envs that are being reset; leave
+            # other envs' multipliers intact so they keep their current physics
+            # throughout the rest of the episode.
+            self._dr_key, dr_subkey = jax.random.split(self._dr_key)
+            reset_dr = self._sample_dr_params_batch(dr_subkey)
+            self._dr_params_batch = jax.tree.map(
+                lambda r, n: jnp.where(
+                    needs_reset.reshape(-1, *([1] * (r.ndim - 1))) if r.ndim > 1 else needs_reset,
+                    r,
+                    n,
+                ),
+                reset_dr,
+                self._dr_params_batch,
+            )
+
             new_data = jax.tree.map(
                 lambda r, n: jnp.where(needs_reset.reshape(-1, *([1] * (r.ndim - 1))), r, n),
                 reset_data,
@@ -176,8 +266,6 @@ class MjxVecEnv(VecEnv):
         truncated_np = np.asarray(truncated_only)
         rewards_np = np.asarray(rewards, dtype=np.float64)
 
-                                                                                   
-                                                                                     
         reward_info_np: dict[str, np.ndarray] = {}
         if reward_info is not None:
             for k, v in reward_info.items():
@@ -219,7 +307,7 @@ class MjxVecEnv(VecEnv):
         pass
 
     def env_is_wrapped(self, wrapper_class: Any, indices: Any = None) -> list[bool]:  # type: ignore[override]
-        del wrapper_class, indices                                                  
+        del wrapper_class, indices
         return [False] * self._num_envs
 
     def env_method(  # type: ignore[override]
@@ -255,12 +343,9 @@ class MjxVecEnv(VecEnv):
         if seed is not None:
             self._master_key = jax.random.PRNGKey(seed)
 
-                                                                   
-
     def get_cpu_model_data(self) -> tuple[mujoco.MjModel, mujoco.MjData]:
 
         if self._mjx_data_batch is not None:
-                                                   
             qpos_0 = np.asarray(jax.tree.map(lambda x: x[0], self._mjx_data_batch.qpos))
             qvel_0 = np.asarray(jax.tree.map(lambda x: x[0], self._mjx_data_batch.qvel))
             self._cpu_data.qpos[:] = qpos_0

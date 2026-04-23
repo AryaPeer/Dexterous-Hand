@@ -122,8 +122,10 @@ class GraspRewardCalculator:
         idle_penalty = self.weights.idle * idle_raw
         info["reward/idle_penalty"] = idle_penalty
 
-                                                                                  
-        action_rate_pen = -5e-3 * float(np.sum((actions - previous_actions) ** 2))
+        # scale: IsaacGymEnvs-equivalent at ~-0.5. at -5e-3 the per-step
+        # magnitude was O(-1.5e-3) after weight=0.3, 3 orders of magnitude
+        # below reach. raising so the term can actually shape behavior.
+        action_rate_pen = -0.5 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/action_rate_penalty"] = action_rate_pen
 
         total = (

@@ -284,29 +284,25 @@ class TestReorientReward:
 
         expected_keys = {
             "reward/angular_progress",
-            "reward/orientation_tracking",
-            "reward/orientation_success",
+            "reward/orientation",
             "reward/cube_drop",
-            "reward/velocity_penalty",
-            "reward/fingertip_distance",
             "reward/action_penalty",
             "reward/action_rate_penalty",
             "reward/finger_contact_bonus",
             "reward/no_contact_penalty",
-            "reward/position_stability",
             "reward/total",
             "metrics/angular_distance",
             "metrics/num_finger_contacts",
-            "metrics/mean_fingertip_dist",
-            "metrics/cube_displacement",
             "metrics/success_steps",
         }
         assert expected_keys == set(info.keys())
 
     def test_perfect_orientation_max_tracking(self):
+        # with 3 contacts (>= min_contacts_for_rotation=2), orientation term
+        # peaks at 1.0·(alpha + (1-alpha)·1) = 1.0.
         calc = self.make_calc()
         _, info, _ = calc.compute(**self._default_kwargs())
-        assert_allclose(info["reward/orientation_tracking"], 1.0, rtol=1e-6)
+        assert_allclose(info["reward/orientation"], 1.0, rtol=1e-6)
 
     def test_90_degree_error_lower_tracking(self):
         calc = self.make_calc()
@@ -314,8 +310,21 @@ class TestReorientReward:
 
         q90 = quat_from_axis_angle(np.array([0.0, 0.0, 1.0]), np.pi / 2)
         _, info, _ = calc.compute(**self._default_kwargs(target_quat=q90))
-        expected = float(np.exp(-5.0 * np.pi / 2))
-        assert_allclose(info["reward/orientation_tracking"], expected, rtol=1e-5)
+        # 3 contacts → soft_contact_scale=1, gate=1, orientation=exp(-k·d).
+        # config default tracking_k=2.0.
+        expected = float(np.exp(-2.0 * np.pi / 2))
+        assert_allclose(info["reward/orientation"], expected, rtol=1e-5)
+
+    def test_orientation_contact_gate_lowers_no_contact(self):
+        # at 0 contacts, orientation = exp(-k·d) · alpha. with 7-weight and
+        # alpha=3/7, the contribution is 3.0·exp(-k·d), matching the
+        # pre-collapse orientation_tracking (weight 3) unconditional term.
+        calc = self.make_calc()
+        _, info_full, _ = calc.compute(**self._default_kwargs(num_fingers_in_contact=3))
+        _, info_none, _ = calc.compute(**self._default_kwargs(num_fingers_in_contact=0))
+        alpha = ReorientRewardConfig().orientation_contact_alpha
+        assert_allclose(info_none["reward/orientation"], alpha, rtol=1e-6)
+        assert info_full["reward/orientation"] > info_none["reward/orientation"]
 
     def test_success_detection_after_hold_steps(self):
         calc = self.make_calc()
@@ -344,20 +353,6 @@ class TestReorientReward:
         calc = self.make_calc()
         _, info, _ = calc.compute(**self._default_kwargs(dropped=True))
         assert_allclose(info["reward/cube_drop"], -20.0)
-
-    def test_velocity_penalty_only_linear(self):
-        calc = self.make_calc()
-                                                                               
-                                                                    
-        _, info_still, _ = calc.compute(**self._default_kwargs(cube_linvel=ZERO3))
-        assert_allclose(info_still["reward/velocity_penalty"], 0.0)
-
-        _, info_slide, _ = calc.compute(
-            **self._default_kwargs(
-                cube_linvel=np.array([1.0, 0.0, 0.0]),
-            )
-        )
-        assert info_slide["reward/velocity_penalty"] < 0.0
 
     def test_angular_progress_zero_on_first_step(self):
         calc = self.make_calc()

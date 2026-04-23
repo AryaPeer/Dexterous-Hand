@@ -13,14 +13,14 @@ class TestReorientMjxSmoke:
         env = ShadowHandReorientMjxEnv(num_envs=4, seed=0, max_episode_steps=50)
         try:
             obs = env.reset()
-            assert obs.shape == (4, 115)
+            assert obs.shape == (4, 109)
             assert np.all(np.isfinite(obs))
 
             actions = np.zeros((4, env.action_space.shape[0]), dtype=np.float32)
             for _ in range(5):
                 env.step_async(actions)
                 obs, rewards, dones, infos = env.step_wait()
-                assert obs.shape == (4, 115)
+                assert obs.shape == (4, 109)
                 assert rewards.shape == (4,)
                 assert dones.shape == (4,)
                 assert len(infos) == 4

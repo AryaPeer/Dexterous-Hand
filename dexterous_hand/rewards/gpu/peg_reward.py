@@ -90,15 +90,18 @@ def peg_reward(
     contact_scale = jnp.minimum(n_contacts / 3.0, 1.0)
     grasp = contact_scale * (0.3 + 0.7 * opposition)
 
-                                                                        
+
     lift_height = jnp.maximum(peg_height - state.initial_peg_height, 0.0)
     lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
 
-    was_lifted = state.was_lifted | (lift_height >= lift_target)
+    # the drop predicate below reads state.was_lifted (pre-step) — latching
+    # happens in was_lifted_next and is only committed to state if we did NOT
+    # just drop. mirrors the grasp_reward fix.
+    was_lifted_next = state.was_lifted | (lift_height >= lift_target)
 
 
-                                                                              
-                                                                               
+
+
     lateral_dist = jnp.linalg.norm(peg_position[:2] - hole_position[:2])
     axis_align = jnp.dot(peg_axis, hole_axis)
     lateral_factor_align = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
@@ -120,20 +123,21 @@ def peg_reward(
     )
     complete = jnp.where(new_hold >= peg_hold_steps, complete_bonus, 0.0)
 
-                   
+
     force_excess = jnp.maximum(0.0, contact_force_magnitude - force_threshold)
     force_penalty = -0.01 * force_excess**2
 
-          
-    dropped_now = was_lifted & (lift_height < 0.01)
-    regrasped = dropped_now & (n_contacts >= 2)
-    was_lifted = jnp.where(regrasped, False, was_lifted)
-    dropped_now = jnp.where(regrasped, False, dropped_now)
-    drop = jnp.where(dropped_now, drop_penalty_value, 0.0)
+    # charge the penalty on every drop; clear was_lifted so a re-lift can be
+    # credited again, but do NOT zero the penalty on regrasp — the drop
+    # happened and we pay for it. mirrors the grasp_reward fix.
+    just_dropped = state.was_lifted & (lift_height < 0.01)
+    drop = jnp.where(just_dropped, drop_penalty_value, 0.0)
+    was_lifted = jnp.where(just_dropped, False, was_lifted_next)
 
     # penalizes smoothed-action delta, not raw-action delta: `actions` here
-    # is the env's smoothed output (same on CPU and MJX paths).
-    smoothness = -5e-3 * jnp.sum((actions - previous_actions) ** 2)
+    # is the env's smoothed output (same on CPU and MJX paths). scale raised
+    # from -5e-3 to -0.5 (IsaacGymEnvs-equivalent).
+    smoothness = -0.5 * jnp.sum((actions - previous_actions) ** 2)
 
                                                                         
                                                                         

@@ -56,10 +56,9 @@ class ShadowHandGraspEnv(gym.Env):
             table_height=self.scene_config.table_height,
         )
 
-                        
+
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
-        self._current_object_type: str = "large_cube"
         self._init_qpos = self.data.qpos.copy()
         apply_flexion_bias(self._init_qpos, self.model)
 
@@ -78,7 +77,11 @@ class ShadowHandGraspEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
-        geom_type, geom_size = OBJECT_TYPES[self._current_object_type]
+        # OBJECT_TYPES only contains "large_cube" since the audit (B2) — previous
+        # cylinder/sphere options caused CPU↔GPU obs/reward drift. if you re-
+        # introduce objects, the object_type has to flow through to the reward
+        # via is_sphere or similar and into the GPU path identically.
+        geom_type, geom_size = OBJECT_TYPES["large_cube"]
         half_h = get_object_half_height(geom_type, geom_size)
         obj_x = self.np_random.uniform(-0.05, 0.05)
         obj_y = self.np_random.uniform(-0.05, 0.05)
@@ -100,12 +103,17 @@ class ShadowHandGraspEnv(gym.Env):
         self.reward_calculator.reset(initial_object_height=obj_z)
 
         obs = self._get_obs()
-        info = {"object_type": self._current_object_type}
+        info: dict[str, Any] = {}
 
         return obs, info
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
 
+        # action smoothing is part of the env dynamics: SB3's replay buffer
+        # stores the raw action the policy emitted, but ctrl is a low-pass
+        # version of it. the agent still learns a self-consistent Q/V because
+        # the env is a black box from its perspective — if you eval a trained
+        # policy on an env without smoothing, it will be OOD. audit D1.
         action = np.clip(action, -1.0, 1.0)
         alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
         if alpha > 0.0:
@@ -157,10 +165,7 @@ class ShadowHandGraspEnv(gym.Env):
             terminated = True
 
         obs = self._get_obs()
-        info = {
-            "object_type": self._current_object_type,
-            **reward_info,
-        }
+        info: dict[str, Any] = {**reward_info}
         info["reward/total"] = float(reward)
 
         return obs, float(reward), terminated, False, info

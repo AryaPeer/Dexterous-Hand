@@ -16,9 +16,11 @@ class ReorientRewardCalculator:
         self.no_contact_penalty_value = config.no_contact_penalty
         self.min_contacts_for_rotation = config.min_contacts_for_rotation
         self.angular_progress_clip = config.angular_progress_clip
-        self.orientation_success_k = config.orientation_success_k
         self.tracking_k = config.tracking_k
-        self._initial_cube_pos = initial_cube_pos.copy()
+        self.orientation_contact_alpha = config.orientation_contact_alpha
+        # initial_cube_pos used to be wired up for position_stability (zero
+        # weight since the audit). keep the arg for API symmetry; ignore.
+        del initial_cube_pos
         self._success_steps = 0
         self._prev_ang_dist: float | None = None
 
@@ -26,8 +28,7 @@ class ReorientRewardCalculator:
 
         self._success_steps = 0
         self._prev_ang_dist = None
-        if initial_cube_pos is not None:
-            self._initial_cube_pos = initial_cube_pos.copy()
+        del initial_cube_pos
 
     def compute(
         self,
@@ -52,28 +53,24 @@ class ReorientRewardCalculator:
             angular_progress = 0.0
         else:
             angular_progress = float(self._prev_ang_dist - ang_dist)
-                                                                                
-                                                      
         clip = self.angular_progress_clip
         angular_progress = float(np.clip(angular_progress, -clip, clip))
         self._prev_ang_dist = float(ang_dist)
         info["reward/angular_progress"] = angular_progress
 
-        orientation_tracking = float(np.exp(-self.tracking_k * ang_dist))
-        info["reward/orientation_tracking"] = orientation_tracking
-
-                                                                                            
+        # single orientation term parameterized by alpha = unconditional fraction.
+        # at 2+ contacts: exp(-k·d) · 1 · weight(7.0); max 7.0 / step at ang_dist=0.
+        # at 0 contacts:  exp(-k·d) · alpha(~0.43) · weight(7.0); max ~3.0 / step.
+        # matches the pre-collapse magnitudes of orientation_tracking(3) +
+        # orientation_success(4) in their respective contact regimes.
         soft_contact_scale = min(num_fingers_in_contact / float(min_contacts), 1.0)
-                                                                                 
-                                                                            
-                                                                                 
-        orientation_success = (
-            float(np.exp(-self.orientation_success_k * ang_dist)) * soft_contact_scale
-        )
-        info["reward/orientation_success"] = orientation_success
+        alpha = self.orientation_contact_alpha
+        orientation_gate = alpha + (1.0 - alpha) * soft_contact_scale
+        orientation = float(np.exp(-self.tracking_k * ang_dist)) * orientation_gate
+        info["reward/orientation"] = orientation
 
-                                                                                   
-                                                   
+        # success hold-count and target-reached predicate: require hitting the
+        # success_threshold with enough contacts for success_hold_steps.
         at_target = ang_dist < self.success_threshold
         if at_target and num_fingers_in_contact >= min_contacts:
             self._success_steps += 1
@@ -84,57 +81,43 @@ class ReorientRewardCalculator:
         cube_drop = self.drop_penalty_value if dropped else 0.0
         info["reward/cube_drop"] = cube_drop
 
-        velocity_penalty = -0.1 * float(np.sum(cube_linvel**2))
-        info["reward/velocity_penalty"] = velocity_penalty
-
-        dists = np.linalg.norm(finger_positions - cube_pos, axis=1)
-        fingertip_distance = float(np.exp(-5.0 * np.mean(dists)))
-        info["reward/fingertip_distance"] = fingertip_distance
-
-        action_penalty = -0.005 * float(np.sum(actions**2))
+        # scales bumped from (-0.005, -0.002) to (-0.01, -0.1). action_penalty
+        # stays modest because sum(a²) ~6 at random 20-dim actions and we don't
+        # want it to dominate orientation (which goes to ~0 at 180° with
+        # tracking_k=2). action_rate gets the full IsaacGymEnvs-equivalent
+        # scale since sum(Δa²) is typically small under the smoother.
+        action_penalty = -0.01 * float(np.sum(actions**2))
         info["reward/action_penalty"] = action_penalty
 
-        action_rate_penalty = -0.002 * float(np.sum((actions - previous_actions) ** 2))
+        action_rate_penalty = -0.1 * float(np.sum((actions - previous_actions) ** 2))
         info["reward/action_rate_penalty"] = action_rate_penalty
 
         contact_raw = self.contact_bonus_value * min(num_fingers_in_contact / 3.0, 1.0)
         finger_contact_bonus = self.weights.contact_bonus * contact_raw
         info["reward/finger_contact_bonus"] = finger_contact_bonus
 
-                                                                              
-                                                    
+        # smooth ramp: exp(-2·n_contacts). 1.0 at n=0, 0.14 at n=1, 0.02 at n=2.
         no_contact_ramp = float(np.exp(-2.0 * num_fingers_in_contact))
         no_contact_raw = self.no_contact_penalty_value * no_contact_ramp
         no_contact_penalty = self.weights.no_contact * no_contact_raw
         info["reward/no_contact_penalty"] = no_contact_penalty
 
-                                                                              
-                                                                              
-                                                                                      
-                            
-        pos_error = float(np.linalg.norm(cube_pos - self._initial_cube_pos))
-        position_stability_penalty = -pos_error
-        info["reward/position_stability"] = position_stability_penalty
-
         total = (
             self.weights.angular_progress * angular_progress
-            + self.weights.orientation_tracking * orientation_tracking
-            + self.weights.orientation_success * orientation_success
+            + self.weights.orientation * orientation
             + self.weights.cube_drop * cube_drop
-            + self.weights.velocity_penalty * velocity_penalty
-            + self.weights.fingertip_distance * fingertip_distance
             + self.weights.action_penalty * action_penalty
             + self.weights.action_rate_penalty * action_rate_penalty
             + finger_contact_bonus
             + no_contact_penalty
-            + self.weights.position_stability * position_stability_penalty
         )
 
         info["reward/total"] = total
         info["metrics/angular_distance"] = ang_dist
         info["metrics/num_finger_contacts"] = float(num_fingers_in_contact)
-        info["metrics/mean_fingertip_dist"] = float(np.mean(dists))
-        info["metrics/cube_displacement"] = pos_error
         info["metrics/success_steps"] = float(self._success_steps)
+        # retained locals referenced by the API; suppress linter warnings for
+        # unused positional arguments.
+        del cube_pos, cube_linvel, finger_positions
 
         return total, info, target_reached

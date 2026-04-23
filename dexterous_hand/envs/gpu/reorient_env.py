@@ -8,7 +8,12 @@ import jax.numpy as jnp
 import mujoco
 import mujoco.mjx as mjx
 
-from dexterous_hand.config import MjxReorientTrainConfig, ReorientRewardConfig, ReorientSceneConfig
+from dexterous_hand.config import (
+    DomainRandomization,
+    MjxReorientTrainConfig,
+    ReorientRewardConfig,
+    ReorientSceneConfig,
+)
 from dexterous_hand.envs.gpu.mjx_vec_env import MjxVecEnv
 from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
 from dexterous_hand.envs.scene_builder import GRIP_BIAS, apply_flexion_bias
@@ -51,13 +56,14 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         reward_config: ReorientRewardConfig | None = None,
         max_episode_steps: int = 400,
         obs_noise_std: float = 0.0,
+        dr: DomainRandomization | None = None,
     ) -> None:
         self.scene_config = scene_config or ReorientSceneConfig()
         self.reward_config = reward_config or ReorientRewardConfig()
         self._episode_limit = max_episode_steps
         self._reward_weights = self.reward_config.weights
 
-        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std)
+        super().__init__(num_envs=num_envs, seed=seed, obs_noise_std=obs_noise_std, dr=dr)
 
         _, _, self._nm = build_reorient_scene(self.scene_config)
         init_qpos_np = self._cpu_data.qpos.copy()
@@ -213,8 +219,8 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             no_contact_penalty_value=self.reward_config.no_contact_penalty,
             min_contacts_for_rotation=self.reward_config.min_contacts_for_rotation,
             angular_progress_clip=self.reward_config.angular_progress_clip,
-            orientation_success_k=self.reward_config.orientation_success_k,
             tracking_k=self.reward_config.tracking_k,
+            orientation_contact_alpha=self.reward_config.orientation_contact_alpha,
         )
 
         new_key, subkey = jax.random.split(env_state.key)
@@ -312,4 +318,5 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             reward_config=config.reward_config,
             max_episode_steps=config.max_episode_steps,
             obs_noise_std=config.obs_noise_std,
+            dr=config.dr,
         )
