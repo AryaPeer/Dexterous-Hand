@@ -111,6 +111,8 @@ def grasp_reward(
     idle_raw = jnp.where(new_idle_steps >= idle_grace_steps, no_contact_idle_penalty, 0.0)
     idle_penalty = weights.idle * idle_raw
 
+    # penalizes smoothed-action delta, not raw-action delta: `actions` here
+    # is the env's smoothed output (same on CPU and MJX paths).
     action_rate_pen = -5e-3 * jnp.sum((actions - previous_actions) ** 2)
 
     total = (

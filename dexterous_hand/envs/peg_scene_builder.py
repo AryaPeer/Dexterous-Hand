@@ -125,6 +125,7 @@ def build_peg_scene(
         gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
         ctrlrange=[-0.15, 0.15],
+        forcerange=[-30, 30],
     )
     spec.add_actuator(
         name="slide_y_act",
@@ -135,6 +136,7 @@ def build_peg_scene(
         gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
         ctrlrange=[-0.15, 0.15],
+        forcerange=[-30, 30],
     )
 
     hand_xml = str(ASSETS_DIR / "right_hand.xml")
@@ -194,18 +196,21 @@ def build_peg_scene(
 
 
 
+    # solref aligned with the hand's solref="0.005 1" in right_hand.xml.
+    # MuJoCo picks the softer of the two time constants at mixed contacts, so
+    # asymmetric values caused normal-force oscillation at peg-hand contact.
     peg_kwargs = dict(
         contype=3,
         conaffinity=3,
         condim=4,
-        solref=[0.02, 1.0],
+        solref=[0.005, 1.0],
         solimp=[0.9, 0.95, 0.001, 0.5, 2.0],
     )
     wall_kwargs = dict(
         contype=2,
         conaffinity=2,
         condim=4,
-        solref=[0.02, 1.0],
+        solref=[0.005, 1.0],
         solimp=[0.9, 0.95, 0.001, 0.5, 2.0],
     )
 

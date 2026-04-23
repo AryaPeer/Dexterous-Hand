@@ -201,6 +201,7 @@ def build_scene(
         gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
         ctrlrange=[-0.15, 0.15],
+        forcerange=[-30, 30],
     )
     spec.add_actuator(
         name="slide_y_act",
@@ -211,6 +212,7 @@ def build_scene(
         gainprm=[100, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         biasprm=[0, -100, -10, 0, 0, 0, 0, 0, 0, 0],
         ctrlrange=[-0.15, 0.15],
+        forcerange=[-30, 30],
     )
 
     hand_xml = str(ASSETS_DIR / "right_hand.xml")

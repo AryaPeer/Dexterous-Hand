@@ -131,7 +131,8 @@ def peg_reward(
     dropped_now = jnp.where(regrasped, False, dropped_now)
     drop = jnp.where(dropped_now, drop_penalty_value, 0.0)
 
-                
+    # penalizes smoothed-action delta, not raw-action delta: `actions` here
+    # is the env's smoothed output (same on CPU and MJX paths).
     smoothness = -5e-3 * jnp.sum((actions - previous_actions) ** 2)
 
                                                                         
