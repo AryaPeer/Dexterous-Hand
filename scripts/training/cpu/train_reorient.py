@@ -162,9 +162,15 @@ def parse_args() -> ReorientTrainConfig:
     parser.add_argument("--batch-size", type=int, default=4096)
     parser.add_argument("--n-steps-per-env", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--curriculum-reference-timesteps",
+        type=int,
+        default=None,
+        help="Reference total for curriculum scaling. Default keeps config value.",
+    )
     args = parser.parse_args()
 
-    return ReorientTrainConfig(
+    kwargs = dict(
         n_envs=args.n_envs,
         total_timesteps=args.total_timesteps,
         learning_rate=args.learning_rate,
@@ -172,6 +178,10 @@ def parse_args() -> ReorientTrainConfig:
         n_steps_per_env=args.n_steps_per_env,
         seed=args.seed,
     )
+    if args.curriculum_reference_timesteps is not None:
+        kwargs["curriculum_reference_timesteps"] = args.curriculum_reference_timesteps
+
+    return ReorientTrainConfig(**kwargs)
 
 if __name__ == "__main__":
     config = parse_args()

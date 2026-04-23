@@ -120,9 +120,16 @@ def parse_args() -> MjxReorientTrainConfig:
     parser.add_argument("--batch-size", type=int, default=4096)
     parser.add_argument("--n-steps-per-env", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--curriculum-reference-timesteps",
+        type=int,
+        default=None,
+        help="Reference total for curriculum scaling. Default keeps config value (400M). "
+        "Set to 20_000_000 with a 2M sanity to pin stage 0 (30°) for the full run.",
+    )
     args = parser.parse_args()
 
-    return MjxReorientTrainConfig(
+    kwargs = dict(
         num_envs=args.num_envs,
         total_timesteps=args.total_timesteps,
         learning_rate=args.learning_rate,
@@ -130,6 +137,10 @@ def parse_args() -> MjxReorientTrainConfig:
         n_steps_per_env=args.n_steps_per_env,
         seed=args.seed,
     )
+    if args.curriculum_reference_timesteps is not None:
+        kwargs["curriculum_reference_timesteps"] = args.curriculum_reference_timesteps
+
+    return MjxReorientTrainConfig(**kwargs)
 
 if __name__ == "__main__":
     config = parse_args()

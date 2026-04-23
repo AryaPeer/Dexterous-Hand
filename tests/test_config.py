@@ -65,7 +65,7 @@ class TestConfigDefaults:
     def test_reorient_train_config(self):
         c = ReorientTrainConfig()
         assert c.gamma == 0.998
-        assert c.ent_coef == 0.002
+        assert c.ent_coef == 0.01
         assert isinstance(c.scene_config, ReorientSceneConfig)
         assert isinstance(c.reward_config, ReorientRewardConfig)
         assert c.curriculum_reference_timesteps == 400_000_000

@@ -106,8 +106,12 @@ class ReorientRewardConfig:
                                                                            
                                                                               
     angular_progress_clip: float = 0.2
-    orientation_success_k: float = 5.0                                        
-    tracking_k: float = 5.0                                                    
+    # k=5 makes exp(-k·ang_dist) collapse past ~1 rad (exp(-5)=0.007), so the
+    # policy can't feel any orientation gradient once the curriculum opens up
+    # beyond 30°. k=2 keeps the signal meaningful out to ~2 rad (exp(-4)=0.018
+    # is still differentiable) so the 90° / 180° / π stages aren't reward-flat.
+    orientation_success_k: float = 2.0
+    tracking_k: float = 2.0
 
 @dataclass
 class ReorientSceneConfig:
@@ -130,10 +134,13 @@ class ReorientTrainConfig:
     batch_size: int = 4096
     n_steps_per_env: int = 128
     n_epochs: int = 5
-    gamma: float = 0.998                                                      
+    gamma: float = 0.998
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.002
+    # 2M sanity on main showed PPO converging to a stable passive-contact
+    # optimum (explained_variance=0.967, angular_distance drifting up) —
+    # policy needs more exploration to escape. 0.01 matches IsaacGymEnvs ShadowHand.
+    ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
@@ -293,7 +300,7 @@ class MjxReorientTrainConfig:
     gamma: float = 0.998
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.002
+    ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
