@@ -35,7 +35,11 @@ class RewardWeights:
     lifting: float = 3.0
     holding: float = 4.0
     drop: float = 1.0
-    action_rate: float = 0.3
+    # action_penalty scale matches IsaacGymEnvs ShadowHand / FrankaCubeStack
+    # convention: -0.0002·||a||² per step at weight 1.0. neither Dactyl nor
+    # IsaacGymEnvs use an action-RATE penalty, so that term is gone.
+    action_penalty: float = 1.0
+    success: float = 1.0
     idle: float = 1.0
     opposition: float = 1.0
 
@@ -49,7 +53,13 @@ class RewardConfig:
     hold_height_smoothness_k: float = 50.0
     hold_velocity_smoothness_k: float = 100.0
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0)
-    drop_penalty: float = -10.0
+    # -20 matches Dactyl's fall_penalty and IsaacGymEnvs fall_penalty. prior
+    # -10 was half that.
+    drop_penalty: float = -20.0
+    # sparse terminal bonus on successful lift hold (matches IsaacGymEnvs
+    # success_bonus=250 for ShadowHand reorient; same scale applied here).
+    success_bonus: float = 250.0
+    success_hold_steps: int = 20
     no_contact_idle_penalty: float = -0.08
     idle_grace_steps: int = 3
 
@@ -87,8 +97,12 @@ class ReorientRewardWeights:
     # knob (orientation_contact_alpha) on ReorientRewardConfig.
     orientation: float = 7.0
     cube_drop: float = 5.0
-    action_penalty: float = 0.5
-    action_rate_penalty: float = 0.5
+    # action_penalty now uses IsaacGymEnvs ShadowHand scale (-0.0002·||a||²)
+    # × weight 1.0 per step. action_rate_penalty removed — neither Dactyl
+    # (progress + success + drop) nor IsaacGymEnvs (dist + action² + fall +
+    # success) has one. rate penalties discourage the fast finger motion
+    # in-hand manipulation needs.
+    action_penalty: float = 1.0
     contact_bonus: float = 0.3
     no_contact: float = 0.2
 
@@ -174,14 +188,20 @@ class PegRewardWeights:
     complete: float = 1.0
     force: float = 1.0
     drop: float = 1.0
-    smoothness: float = 0.3
+    # action_penalty matches grasp/reorient scale (-0.0002·||a||² × weight 1).
+    # smoothness (action-rate style) removed — Factory / IndustReal / IsaacGymEnvs
+    # don't use one; it discouraged the fast finger repositioning peg insertion
+    # needs during alignment.
+    action_penalty: float = 1.0
     idle_stage0: float = 1.0
 
 @dataclass
 class PegRewardConfig:
 
     weights: PegRewardWeights = field(default_factory=PegRewardWeights)
-    drop_penalty: float = -10.0
+    # -20 matches Dactyl/IsaacGymEnvs fall_penalty scale (grasp and reorient
+    # also use -20; was -10 pre-audit).
+    drop_penalty: float = -20.0
     complete_bonus: float = 2000.0
     depth_reward_scale: float = 10.0
     force_threshold: float = 15.0

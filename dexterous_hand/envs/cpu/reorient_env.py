@@ -90,9 +90,11 @@ class ShadowHandReorientEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
-                                        
+        # joint-pos init noise: ±0.05 rad (Dactyl scale). prior ±0.01 was
+        # below the variance of the target distribution, so the policy saw
+        # near-identical initial states every episode — exploration killer.
         hand_qpos = self._init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
-        noise = self.np_random.uniform(-0.01, 0.01, size=hand_qpos.shape)
+        noise = self.np_random.uniform(-0.05, 0.05, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
         self.data.qvel[:] = 0.0
 
@@ -101,11 +103,14 @@ class ShadowHandReorientEnv(gym.Env):
         palm_pos = get_palm_position(self.data, self.nm.palm_body_id)
         self._palm_z = float(palm_pos[2])
 
+        # cube pose init noise: Dactyl scale. ±0.008 m position, 0.3 rad
+        # initial rotation from identity. prior ±0.004 and 0.1 rad gave
+        # essentially the same cube pose every episode.
         s = self.nm.cube_qpos_start
         cube_pos = self.data.site_xpos[self._grasp_site_id].copy()
-        cube_pos += self.np_random.uniform(-0.004, 0.004, size=3)
+        cube_pos += self.np_random.uniform(-0.008, 0.008, size=3)
         self.data.qpos[s : s + 3] = cube_pos
-        init_quat = random_quaternion_within_angle(self.np_random, 0.1)
+        init_quat = random_quaternion_within_angle(self.np_random, 0.3)
         self.data.qpos[s + 3 : s + 7] = init_quat
 
         mujoco.mj_forward(self.model, self.data)

@@ -81,16 +81,14 @@ class ReorientRewardCalculator:
         cube_drop = self.drop_penalty_value if dropped else 0.0
         info["reward/cube_drop"] = cube_drop
 
-        # scales bumped from (-0.005, -0.002) to (-0.01, -0.1). action_penalty
-        # stays modest because sum(a²) ~6 at random 20-dim actions and we don't
-        # want it to dominate orientation (which goes to ~0 at 180° with
-        # tracking_k=2). action_rate gets the full IsaacGymEnvs-equivalent
-        # scale since sum(Δa²) is typically small under the smoother.
-        action_penalty = -0.01 * float(np.sum(actions**2))
+        # action_penalty: IsaacGymEnvs ShadowHand scale (-0.0002·||a||²) at
+        # weight 1.0. per-step cost ~ -0.0013 at 20 actions in [-1,1], well
+        # below the dense orientation term. no action-rate / smoothness
+        # penalty — neither Dactyl nor IsaacGymEnvs has one, and it
+        # discourages the fast finger motion reorientation requires.
+        action_penalty = -0.0002 * float(np.sum(actions**2))
         info["reward/action_penalty"] = action_penalty
-
-        action_rate_penalty = -0.1 * float(np.sum((actions - previous_actions) ** 2))
-        info["reward/action_rate_penalty"] = action_rate_penalty
+        del previous_actions
 
         contact_raw = self.contact_bonus_value * min(num_fingers_in_contact / 3.0, 1.0)
         finger_contact_bonus = self.weights.contact_bonus * contact_raw
@@ -107,7 +105,6 @@ class ReorientRewardCalculator:
             + self.weights.orientation * orientation
             + self.weights.cube_drop * cube_drop
             + self.weights.action_penalty * action_penalty
-            + self.weights.action_rate_penalty * action_rate_penalty
             + finger_contact_bonus
             + no_contact_penalty
         )

@@ -115,8 +115,10 @@ class ShadowHandPegEnv(gym.Env):
         spawn_pre_grasped = self.np_random.random() < self._p_pre_grasped
         init_qpos = self._init_qpos_grip if spawn_pre_grasped else self._init_qpos_table
 
+        # joint-pos init noise: ±0.05 rad (Dactyl scale). prior ±0.01 was
+        # too tight and kept the policy seeing near-identical initial states.
         hand_qpos = init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
-        noise = self.np_random.uniform(-0.01, 0.01, size=hand_qpos.shape)
+        noise = self.np_random.uniform(-0.05, 0.05, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
         mujoco.mj_forward(self.model, self.data)
 

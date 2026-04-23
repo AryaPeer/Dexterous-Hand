@@ -99,9 +99,9 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
                          
         qpos = self._init_qpos
 
-                                 
+        # joint-pos init noise: ±0.05 rad (Dactyl scale). matches CPU env.
         hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
-        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.01, maxval=0.01)
+        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.05, maxval=0.05)
         qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
 
                                                      
@@ -183,6 +183,8 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
             hold_velocity_threshold=self.reward_config.hold_velocity_threshold,
             drop_penalty_value=self.reward_config.drop_penalty,
             no_contact_idle_penalty=self.reward_config.no_contact_idle_penalty,
+            success_bonus_value=self.reward_config.success_bonus,
+            success_hold_steps=self.reward_config.success_hold_steps,
             weights=self._reward_weights,
             reach_tanh_k=self.reward_config.reach_tanh_k,
             hold_height_k=self.reward_config.hold_height_smoothness_k,

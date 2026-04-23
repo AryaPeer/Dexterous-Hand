@@ -72,12 +72,11 @@ def reorient_reward(
 
     cube_drop = jnp.where(dropped, drop_penalty_value, 0.0)
 
-    # scales bumped from (-0.005, -0.002) to (-0.01, -0.1). action_penalty
-    # stays modest because sum(a²) is O(6) at 20 actions — we don't want it
-    # to dominate orientation (which goes to ~0 at 180° with tracking_k=2).
-    # action_rate gets the full IsaacGymEnvs-equivalent scale.
-    action_penalty = -0.01 * jnp.sum(actions**2)
-    action_rate_penalty = -0.1 * jnp.sum((actions - previous_actions) ** 2)
+    # action_penalty: IsaacGymEnvs ShadowHand scale (-0.0002·||a||²) at
+    # weight 1.0. no action-rate penalty — not in Dactyl / IsaacGymEnvs.
+    # `previous_actions` retained in signature for API stability.
+    del previous_actions
+    action_penalty = -0.0002 * jnp.sum(actions**2)
 
     contact_raw = contact_bonus_value * jnp.minimum(n_contacts / 3.0, 1.0)
     finger_contact_bonus = weights.contact_bonus * contact_raw
@@ -92,7 +91,6 @@ def reorient_reward(
         + weights.orientation * orientation
         + weights.cube_drop * cube_drop
         + weights.action_penalty * action_penalty
-        + weights.action_rate_penalty * action_rate_penalty
         + finger_contact_bonus
         + no_contact_penalty
     )
@@ -109,7 +107,6 @@ def reorient_reward(
         "reward/orientation": orientation,
         "reward/cube_drop": cube_drop,
         "reward/action_penalty": action_penalty,
-        "reward/action_rate_penalty": action_rate_penalty,
         "reward/finger_contact_bonus": finger_contact_bonus,
         "reward/no_contact_penalty": no_contact_penalty,
         "reward/total": total,

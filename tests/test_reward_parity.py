@@ -90,6 +90,8 @@ class TestGraspParity:
                 hold_velocity_threshold=cfg.hold_velocity_threshold,
                 drop_penalty_value=cfg.drop_penalty,
                 no_contact_idle_penalty=cfg.no_contact_idle_penalty,
+                success_bonus_value=cfg.success_bonus,
+                success_hold_steps=cfg.success_hold_steps,
                 weights=cfg.weights,
                 reach_tanh_k=cfg.reach_tanh_k,
                 hold_height_k=cfg.hold_height_smoothness_k,

@@ -151,15 +151,13 @@ class PegRewardCalculator:
             self._was_lifted = False
         info["reward/drop"] = drop
 
-        # scale raised from -5e-3 to -0.5 (IsaacGymEnvs-equivalent) so the
-        # term actually penalizes jerky actions vs the O(1) shaping terms.
-        smoothness = -0.5 * float(np.sum((actions - previous_actions) ** 2))
-        info["reward/smoothness"] = smoothness
+        # action_penalty: IsaacGymEnvs/Factory scale -0.0002·||a||² at weight 1.0.
+        # no action-rate / smoothness penalty — neither Factory, IndustReal, nor
+        # IsaacGymEnvs use one; it discouraged fast finger motion.
+        action_penalty = -0.0002 * float(np.sum(actions**2))
+        info["reward/action_penalty"] = action_penalty
+        del previous_actions
 
-                                                                              
-                                                                                
-                                                                                  
-                          
         idle_active = n_contacts == 0 and stage < self.idle_stage_cutoff
         if idle_active:
             self._idle_steps += 1
@@ -181,7 +179,7 @@ class PegRewardCalculator:
             + self.weights.complete * complete
             + self.weights.force * force_penalty
             + self.weights.drop * drop
-            + self.weights.smoothness * smoothness
+            + self.weights.action_penalty * action_penalty
             + idle_penalty
         )
 

@@ -60,7 +60,8 @@ class TestGraspEnvStep:
             "reward/lifting",
             "reward/holding",
             "reward/drop",
-            "reward/action_rate_penalty",
+            "reward/success",
+            "reward/action_penalty",
             "reward/total",
         ]
         for key in expected:

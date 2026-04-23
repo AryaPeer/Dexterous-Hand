@@ -91,8 +91,12 @@ class ShadowHandGraspEnv(gym.Env):
         self.data.qpos[s : s + 3] = [obj_x, obj_y, obj_z]
         self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
 
+        # joint-pos init noise: ±0.05 rad ≈ ±3°. matches Dactyl's initial
+        # randomization scale and is well inside every joint's range. prior
+        # ±0.01 was barely above machine noise; the policy saw nearly the
+        # same start state every episode.
         hand_qpos = self._init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
-        noise = self.np_random.uniform(-0.01, 0.01, size=hand_qpos.shape)
+        noise = self.np_random.uniform(-0.05, 0.05, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
 
         self.data.qvel[:] = 0.0

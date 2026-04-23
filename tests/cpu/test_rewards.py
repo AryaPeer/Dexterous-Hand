@@ -42,14 +42,16 @@ class TestGraspReward:
             "reward/lifting",
             "reward/holding",
             "reward/drop",
+            "reward/success",
             "reward/idle_penalty",
-            "reward/action_rate_penalty",
+            "reward/action_penalty",
             "reward/grasp_quality",
             "reward/total",
             "metrics/num_finger_contacts",
             "metrics/object_height",
             "metrics/object_speed",
             "metrics/mean_fingertip_dist",
+            "metrics/success_hold_steps",
         }
         assert expected_keys == set(info.keys())
 
@@ -202,7 +204,7 @@ class TestGraspReward:
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
-        assert info["reward/drop"] == -10.0
+        assert info["reward/drop"] == -20.0
 
     def test_drop_penalty_not_triggered_without_lift(self):
         calc = self.make_calc()
@@ -218,21 +220,20 @@ class TestGraspReward:
         )
         assert_allclose(info["reward/drop"], 0.0)
 
-    def test_action_rate_zero_for_same_actions(self):
+    def test_action_penalty_scales_with_action_norm(self):
+        # IsaacGymEnvs ShadowHand scale: -0.0002·||a||². zero actions give 0,
+        # max-magnitude actions give -0.0002·22 = -0.0044.
         calc = self.make_calc()
-        actions = np.ones(22) * 0.5
         obj = np.array([0.0, 0.0, 0.5])
 
-        _, info = calc.compute(
-            _fingertips_at(obj),
-            obj,
-            ZERO3,
-            0,
-            set(),
-            actions,
-            actions,
+        _, info_zero = calc.compute(
+            _fingertips_at(obj), obj, ZERO3, 0, set(), np.zeros(22), np.zeros(22),
         )
-        assert_allclose(info["reward/action_rate_penalty"], 0.0)
+        _, info_big = calc.compute(
+            _fingertips_at(obj), obj, ZERO3, 0, set(), np.ones(22), np.ones(22),
+        )
+        assert_allclose(info_zero["reward/action_penalty"], 0.0)
+        assert_allclose(info_big["reward/action_penalty"], -0.0002 * 22, rtol=1e-6)
 
     def test_reward_is_finite(self):
         calc = self.make_calc()
@@ -287,7 +288,6 @@ class TestReorientReward:
             "reward/orientation",
             "reward/cube_drop",
             "reward/action_penalty",
-            "reward/action_rate_penalty",
             "reward/finger_contact_bonus",
             "reward/no_contact_penalty",
             "reward/total",
@@ -418,7 +418,7 @@ class TestPegReward:
             "reward/complete",
             "reward/force_penalty",
             "reward/drop",
-            "reward/smoothness",
+            "reward/action_penalty",
             "reward/idle_stage0_penalty",
             "reward/total",
             "metrics/stage",
@@ -617,7 +617,7 @@ class TestPegReward:
                 num_fingers_in_contact=0,
             )
         )
-        assert_allclose(info["reward/drop"], -10.0)
+        assert_allclose(info["reward/drop"], -20.0)
 
     def test_drop_penalty_requires_real_lift(self):
         calc = self.make_calc()
@@ -639,14 +639,13 @@ class TestPegReward:
         )
         assert_allclose(info["reward/drop"], 0.0)
 
-    def test_smoothness_zero_for_constant_actions(self):
+    def test_action_penalty_zero_for_zero_actions(self):
+        # IsaacGymEnvs scale: -0.0002·||a||². zero actions → 0 penalty.
         calc = self.make_calc()
-        actions = np.ones(22) * 0.3
-
         _, info = calc.compute(
             **self._default_kwargs(
-                actions=actions,
-                previous_actions=actions,
+                actions=np.zeros(22),
+                previous_actions=np.zeros(22),
             )
         )
-        assert_allclose(info["reward/smoothness"], 0.0)
+        assert_allclose(info["reward/action_penalty"], 0.0)

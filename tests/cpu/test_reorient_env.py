@@ -58,7 +58,6 @@ class TestReorientEnvStep:
             "reward/orientation",
             "reward/cube_drop",
             "reward/action_penalty",
-            "reward/action_rate_penalty",
             "reward/finger_contact_bonus",
             "reward/no_contact_penalty",
             "reward/total",

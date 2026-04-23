@@ -111,9 +111,9 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
 
         qpos = self._init_qpos
 
-                               
+        # joint-pos init noise: ±0.05 rad (Dactyl scale). matches CPU env.
         hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
-        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.01, maxval=0.01)
+        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.05, maxval=0.05)
         qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
         qvel = jnp.zeros(mjx_model.nv)
 
@@ -123,13 +123,14 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         palm_pos = get_palm_position_jax(mjx_data.xpos, nm.palm_body_id)
         palm_z = palm_pos[2]
 
-                                    
+        # cube init: Dactyl scale. ±0.008 m translation, 0.3 rad initial
+        # rotation. matches CPU env.
         cube_pos = mjx_data.site_xpos[self._grasp_site_id]
-        cube_noise = jax.random.uniform(k2, shape=(3,), minval=-0.004, maxval=0.004)
+        cube_noise = jax.random.uniform(k2, shape=(3,), minval=-0.008, maxval=0.008)
         cube_pos = cube_pos + cube_noise
 
         s = nm.cube_qpos_start
-        init_quat = random_quaternion_within_angle(k3, 0.1)
+        init_quat = random_quaternion_within_angle(k3, 0.3)
         qpos = mjx_data.qpos.at[s : s + 3].set(cube_pos)
         qpos = qpos.at[s + 3 : s + 7].set(init_quat)
 

@@ -134,10 +134,12 @@ def peg_reward(
     drop = jnp.where(just_dropped, drop_penalty_value, 0.0)
     was_lifted = jnp.where(just_dropped, False, was_lifted_next)
 
-    # penalizes smoothed-action delta, not raw-action delta: `actions` here
-    # is the env's smoothed output (same on CPU and MJX paths). scale raised
-    # from -5e-3 to -0.5 (IsaacGymEnvs-equivalent).
-    smoothness = -0.5 * jnp.sum((actions - previous_actions) ** 2)
+    # action_penalty: IsaacGymEnvs/Factory scale -0.0002·||a||² at weight 1.0.
+    # no action-rate/smoothness term — not in Factory, IndustReal, or
+    # IsaacGymEnvs; discouraged fast finger motion that insertion alignment
+    # requires. `previous_actions` retained in signature for API stability.
+    del previous_actions
+    action_penalty = -0.0002 * jnp.sum(actions**2)
 
                                                                         
                                                                         
@@ -159,7 +161,7 @@ def peg_reward(
         + weights.complete * complete
         + weights.force * force_penalty
         + weights.drop * drop
-        + weights.smoothness * smoothness
+        + weights.action_penalty * action_penalty
         + idle_penalty
     )
 
@@ -180,7 +182,7 @@ def peg_reward(
         "reward/complete": complete,
         "reward/force_penalty": force_penalty,
         "reward/drop": drop,
-        "reward/smoothness": smoothness,
+        "reward/action_penalty": action_penalty,
         "reward/idle_stage0_penalty": idle_penalty,
         "reward/total": total,
         "metrics/stage": stage.astype(jnp.float32),

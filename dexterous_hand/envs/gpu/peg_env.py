@@ -146,8 +146,9 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
         qpos = jnp.where(spawn_pre_grasped, self._init_qpos_grip, self._init_qpos_table)
 
+        # joint-pos init noise: ±0.05 rad (Dactyl scale). matches CPU env.
         hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
-        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.01, maxval=0.01)
+        noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.05, maxval=0.05)
         qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
         qvel = jnp.zeros(mjx_model.nv)
 

@@ -62,7 +62,7 @@ class TestPegEnvStep:
             "reward/complete",
             "reward/force_penalty",
             "reward/drop",
-            "reward/smoothness",
+            "reward/action_penalty",
             "reward/total",
         ]
         for key in expected:
