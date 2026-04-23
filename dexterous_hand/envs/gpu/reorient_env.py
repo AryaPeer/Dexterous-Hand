@@ -79,7 +79,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         return model
 
     def _obs_size(self) -> int:
-        return 115
+        return 109
 
     def _action_size(self) -> int:
         return int(self._cpu_model.nu)
@@ -282,33 +282,19 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
 
         err_quat = quat_multiply(quat_conjugate(cube_quat), env_state.target_quat)
 
-        touch_vals, contact_mask = get_finger_touch_from_sensors(
-            mjx_data.sensordata, self._finger_touch_adr
-        )
-        cube_rot = mjx_data.xmat[nm.cube_body_id].reshape(3, 3)
-        fingers_local = (fingertip_pos - cube_pos) @ cube_rot
-
-        axis_idx = jnp.argmax(jnp.abs(fingers_local), axis=1)
-        sign_pos = fingers_local[jnp.arange(5), axis_idx] > 0
-        face_idx = axis_idx * 2 + jnp.where(sign_pos, 0, 1)
-        one_hot = jax.nn.one_hot(face_idx, 6)
-        gated = one_hot * contact_mask[:, None].astype(jnp.float32)
-        face_contacts = jnp.clip(gated.sum(axis=0), 0.0, 1.0)
-
         return jnp.concatenate(
             [
-                joint_pos,      
-                joint_vel,      
-                cube_pos,     
-                cube_quat,     
-                cube_linvel,     
-                cube_angvel,     
-                env_state.target_quat,     
-                err_quat,     
-                fingertip_pos.flatten(),      
-                fingertip_cube_dists,     
-                face_contacts,     
-                env_state.previous_actions,      
+                joint_pos,
+                joint_vel,
+                cube_pos,
+                cube_quat,
+                cube_linvel,
+                cube_angvel,
+                env_state.target_quat,
+                err_quat,
+                fingertip_pos.flatten(),
+                fingertip_cube_dists,
+                env_state.previous_actions,
             ]
         )
 

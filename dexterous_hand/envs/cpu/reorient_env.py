@@ -10,14 +10,12 @@ from dexterous_hand.envs.reorient_scene_builder import build_reorient_scene
 from dexterous_hand.envs.scene_builder import GRIP_BIAS, apply_flexion_bias
 from dexterous_hand.rewards.cpu.reorient_reward import ReorientRewardCalculator
 from dexterous_hand.utils.cpu.mujoco_helpers import (
-    get_cube_face_contacts,
     get_finger_contacts,
     get_fingertip_positions,
     get_object_state,
     get_palm_position,
 )
 from dexterous_hand.utils.cpu.quaternion import (
-    quat_angular_distance,
     quat_conjugate,
     quat_multiply,
     random_quaternion_within_angle,
@@ -45,7 +43,7 @@ class ShadowHandReorientEnv(gym.Env):
                                 
         self.model, self.data, self.nm = build_reorient_scene(self.scene_config)
 
-        n_obs = 115                               
+        n_obs = 109
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_obs,), dtype=np.float64
         )
@@ -112,7 +110,7 @@ class ShadowHandReorientEnv(gym.Env):
         mujoco.mj_forward(self.model, self.data)
 
                                             
-        self._target_quat = self._sample_target_quat(cube_quat=init_quat)
+        self._target_quat = self._sample_target_quat()
         self._targets_reached = 0
         init_cube_pos = self.data.xpos[self.nm.cube_body_id].copy()
         self.reward_calculator.reset(initial_cube_pos=init_cube_pos)
@@ -176,7 +174,7 @@ class ShadowHandReorientEnv(gym.Env):
                                              
         if target_reached:
             self._targets_reached += 1
-            self._target_quat = self._sample_target_quat(cube_quat=cube_quat)
+            self._target_quat = self._sample_target_quat()
             self.reward_calculator.reset()
 
         terminated = dropped
@@ -190,24 +188,13 @@ class ShadowHandReorientEnv(gym.Env):
 
         return obs, float(reward), terminated, False, info
 
-    def _sample_target_quat(self, cube_quat: np.ndarray) -> np.ndarray:
-
-        min_angle = min(self.scene_config.target_min_angle, 0.8 * self._max_target_angle)
-        best_quat: np.ndarray | None = None
-        best_dist = -1.0
-
-        for _ in range(32):
-            candidate = random_quaternion_within_angle(self.np_random, self._max_target_angle)
-            dist = float(quat_angular_distance(cube_quat, candidate))
-            if dist >= min_angle:
-                return candidate
-            if dist > best_dist:
-                best_dist = dist
-                best_quat = candidate
-
-        if best_quat is not None:
-            return best_quat
-        return random_quaternion_within_angle(self.np_random, self._max_target_angle)
+    def _sample_target_quat(self) -> np.ndarray:
+        min_angle_floor = min(self.scene_config.target_min_angle, 0.8 * self._max_target_angle)
+        return random_quaternion_within_angle(
+            self.np_random,
+            self._max_target_angle,
+            min_angle_rad=min_angle_floor,
+        )
 
     def _get_obs(self) -> np.ndarray:
 
@@ -225,24 +212,19 @@ class ShadowHandReorientEnv(gym.Env):
 
         err_quat = quat_multiply(quat_conjugate(cube_quat), self._target_quat)
 
-        face_contacts = get_cube_face_contacts(
-            self.model, self.data, nm.cube_geom_id, nm.fingertip_geom_ids
-        )
-
         obs = np.concatenate(
             [
-                joint_pos,      
-                joint_vel,      
-                cube_pos,     
-                cube_quat,     
-                cube_linvel,     
-                cube_angvel,     
-                self._target_quat,     
-                err_quat,     
-                fingertip_pos.flatten(),      
-                fingertip_cube_dists,     
-                face_contacts,     
-                self._previous_actions,      
+                joint_pos,
+                joint_vel,
+                cube_pos,
+                cube_quat,
+                cube_linvel,
+                cube_angvel,
+                self._target_quat,
+                err_quat,
+                fingertip_pos.flatten(),
+                fingertip_cube_dists,
+                self._previous_actions,
             ]
         )
 

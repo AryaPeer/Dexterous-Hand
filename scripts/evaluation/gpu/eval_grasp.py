@@ -1,6 +1,5 @@
 
 import argparse
-from collections import defaultdict
 from pathlib import Path
 
 import gymnasium as gym
@@ -29,7 +28,8 @@ def evaluate(
         vec_env.training = False  # type: ignore[union-attr]
         vec_env.norm_reward = False  # type: ignore[union-attr]
 
-    results: dict[str, dict[str, int]] = defaultdict(lambda: {"grasp": 0, "lift": 0, "total": 0})
+    total_grasps = 0
+    total_lifts = 0
 
     video_frames: list[np.ndarray] = []
     episodes_recorded = 0
@@ -37,8 +37,6 @@ def evaluate(
 
     for _ep in range(n_episodes):
         obs, info = env.reset()
-        obj_type = info.get("object_type", "cylinder")
-        results[obj_type]["total"] += 1
 
         frames: list[np.ndarray] = []
         grasped = False
@@ -73,34 +71,18 @@ def evaluate(
                 break
 
         if grasped:
-            results[obj_type]["grasp"] += 1
+            total_grasps += 1
         if lifted:
-            results[obj_type]["lift"] += 1
+            total_lifts += 1
 
         if record_video and frames and episodes_recorded < max_video_episodes:
             video_frames.extend(frames)
             episodes_recorded += 1
 
-    print(f"\n{'Object Type':<18} {'Grasp %':>10} {'Lift %':>10} {'Episodes':>10}")
-    print("-" * 52)
-
-    total_grasp = 0
-    total_lift = 0
-    total_eps = 0
-
-    for obj_type in sorted(results.keys()):
-        r = results[obj_type]
-        total_eps += r["total"]
-        total_grasp += r["grasp"]
-        total_lift += r["lift"]
-        grasp_pct = 100 * r["grasp"] / max(r["total"], 1)
-        lift_pct = 100 * r["lift"] / max(r["total"], 1)
-        print(f"{obj_type:<18} {grasp_pct:>9.1f}% {lift_pct:>9.1f}% {r['total']:>10}")
-
-    print("-" * 52)
-    overall_grasp = 100 * total_grasp / max(total_eps, 1)
-    overall_lift = 100 * total_lift / max(total_eps, 1)
-    print(f"{'Overall':<18} {overall_grasp:>9.1f}% {overall_lift:>9.1f}% {total_eps:>10}")
+    grasp_pct = 100 * total_grasps / max(n_episodes, 1)
+    lift_pct = 100 * total_lifts / max(n_episodes, 1)
+    print(f"\nGrasp MJX eval (n={n_episodes})")
+    print(f"  grasp={grasp_pct:.1f}%  lift={lift_pct:.1f}%")
 
     if record_video and video_frames:
         vdir = Path(video_dir)

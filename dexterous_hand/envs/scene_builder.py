@@ -11,9 +11,7 @@ from dexterous_hand.utils.cpu.mujoco_helpers import get_joint_qpos_qvel_range
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "shadow_hand"
 
 OBJECT_TYPES: dict[str, tuple[int, list[float]]] = {
-    "large_cube": (mujoco.mjtGeom.mjGEOM_BOX, [0.035, 0.035, 0.035]),
     "cylinder": (mujoco.mjtGeom.mjGEOM_CYLINDER, [0.02, 0.04, 0.0]),
-    "sphere": (mujoco.mjtGeom.mjGEOM_SPHERE, [0.03, 0.0, 0.0]),
 }
 
 FINGERTIP_BODIES = [
@@ -250,7 +248,7 @@ def build_scene(
             objname=touch_site,
         )
 
-    default_type, default_size = OBJECT_TYPES["large_cube"]
+    default_type, default_size = OBJECT_TYPES["cylinder"]
     obj_body = spec.worldbody.add_body(
         name="object",
         pos=[0.0, 0.0, config.table_height + default_size[2]],

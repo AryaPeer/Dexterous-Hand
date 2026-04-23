@@ -23,14 +23,12 @@ class GraspRewardCalculator:
         self.fingertip_weights = np.asarray(config.fingertip_weights, dtype=np.float64)
         self.table_height = table_height
         self._was_lifted = False
-        self._is_sphere = False
         self._initial_height_above_table = 0.0
         self._idle_steps = 0
 
-    def reset(self, initial_object_height: float | None = None, is_sphere: bool = False) -> None:
+    def reset(self, initial_object_height: float | None = None) -> None:
 
         self._was_lifted = False
-        self._is_sphere = is_sphere
         self._idle_steps = 0
         if initial_object_height is None:
             self._initial_height_above_table = 0.0
@@ -67,9 +65,7 @@ class GraspRewardCalculator:
                                                                            
         thumb_contact = 0 in contact_finger_indices
         others = contact_finger_indices - {0}
-        if self._is_sphere and n_contacts > 0:
-            opposition = 1.0
-        elif thumb_contact and len(others) >= 1:
+        if thumb_contact and len(others) >= 1:
             thumb_vec = finger_positions[0] - object_position
             other_stack = np.stack([finger_positions[i] - object_position for i in others])
             mean_other_vec = other_stack.mean(axis=0)

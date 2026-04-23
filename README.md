@@ -2,7 +2,7 @@
 
 Training a simulated Shadow Hand to solve manipulation tasks with reinforcement learning. Built with MuJoCo 3, Stable-Baselines3, and Gymnasium.
 
-The hand has 24 degrees of freedom and learns three tasks: grasping objects, reorienting them in hand, and peg-in-hole insertion.
+The hand has 24 degrees of freedom and learns three tasks: grasping a cylinder, reorienting a cube in hand, and peg-in-hole insertion.
 
 ## Requirements
 
@@ -34,9 +34,6 @@ uv run python main.py train-reorient --n-envs 256 --total-timesteps 400000000
 
 # Peg-in-hole with SAC
 uv run python main.py train-peg --n-envs 32 --total-timesteps 40000000
-
-# Tactile version of peg-in-hole
-uv run python main.py train-tactile --n-envs 32 --total-timesteps 40000000 --variant both
 ```
 
 ## Evaluation
@@ -45,14 +42,13 @@ uv run python main.py train-tactile --n-envs 32 --total-timesteps 40000000 --var
 uv run python main.py evaluate
 uv run python main.py evaluate-reorient
 uv run python main.py evaluate-peg
-uv run python main.py evaluate-tactile
 ```
 
 ## Tasks
 
 ### Grasping (`ShadowHandGrasp-v0`)
 
-Pick up one of several object types from a table.
+Pick a cylinder up from a table.
 
 ### Reorientation (`ShadowHandReorient-v0`)
 
@@ -61,10 +57,6 @@ Rotate a cube in hand to match a target orientation.
 ### Peg-in-Hole (`ShadowHandPeg-v0`)
 
 Grasp a peg, align it with a hole, and insert it.
-
-### Peg-in-Hole with Tactile (`ShadowHandPegTactile-v0`)
-
-Adds simulated 4x4 fingertip taxel grids to the hand. Tactile observations are processed through a small CNN before being passed to the policy. This task is used to compare insertion performance with and without tactile feedback.
 
 ## Testing
 

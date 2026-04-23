@@ -17,9 +17,3 @@ register(
     entry_point="dexterous_hand.envs.cpu.peg_env:ShadowHandPegEnv",
     max_episode_steps=500,
 )
-
-register(
-    id="ShadowHandPegTactile-v0",
-    entry_point="dexterous_hand.envs.cpu.peg_tactile_env:ShadowHandPegTactileEnv",
-    max_episode_steps=500,
-)

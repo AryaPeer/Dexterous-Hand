@@ -31,7 +31,6 @@ class ShadowHandGraspEnv(gym.Env):
         render_mode: str | None = None,
         scene_config: SceneConfig | None = None,
         reward_config: RewardConfig | None = None,
-        object_types: list[str] | None = None,
     ) -> None:
 
         super().__init__()
@@ -39,9 +38,8 @@ class ShadowHandGraspEnv(gym.Env):
         self.scene_config = scene_config or SceneConfig()
         self.reward_config = reward_config or RewardConfig()
         self.render_mode = render_mode
-        self._object_type_names = object_types or list(OBJECT_TYPES.keys())
 
-                                
+
         self.model, self.data, self.nm = build_scene(self.scene_config)
 
         n_obs = 105                         
@@ -61,7 +59,7 @@ class ShadowHandGraspEnv(gym.Env):
                         
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
-        self._current_object_type: str = self._object_type_names[0]
+        self._current_object_type: str = "cylinder"
         self._init_qpos = self.data.qpos.copy()
         apply_flexion_bias(self._init_qpos, self.model)
 
@@ -80,13 +78,7 @@ class ShadowHandGraspEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
-                                               
-        self._current_object_type = self.np_random.choice(self._object_type_names)
         geom_type, geom_size = OBJECT_TYPES[self._current_object_type]
-        self.model.geom_type[self.nm.object_geom_id] = geom_type
-        self.model.geom_size[self.nm.object_geom_id] = geom_size + [0.0] * (3 - len(geom_size))
-
-                                                            
         half_h = get_object_half_height(geom_type, geom_size)
         obj_x = self.np_random.uniform(-0.05, 0.05)
         obj_y = self.np_random.uniform(-0.05, 0.05)
@@ -96,7 +88,6 @@ class ShadowHandGraspEnv(gym.Env):
         self.data.qpos[s : s + 3] = [obj_x, obj_y, obj_z]
         self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
 
-                                                 
         hand_qpos = self._init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
         noise = self.np_random.uniform(-0.01, 0.01, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
@@ -106,8 +97,7 @@ class ShadowHandGraspEnv(gym.Env):
 
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
-        is_sphere = geom_type == mujoco.mjtGeom.mjGEOM_SPHERE
-        self.reward_calculator.reset(initial_object_height=obj_z, is_sphere=is_sphere)
+        self.reward_calculator.reset(initial_object_height=obj_z)
 
         obs = self._get_obs()
         info = {"object_type": self._current_object_type}

@@ -26,13 +26,6 @@ def peg_env():
     env.close()
 
 
-@pytest.fixture(scope="session")
-def peg_tactile_env():
-    env = gym.make("ShadowHandPegTactile-v0", render_mode="rgb_array")
-    yield env
-    env.close()
-
-
 @pytest.fixture
 def fresh_peg_env():
     env = gym.make("ShadowHandPeg-v0")
@@ -43,12 +36,5 @@ def fresh_peg_env():
 @pytest.fixture
 def fresh_reorient_env():
     env = gym.make("ShadowHandReorient-v0")
-    yield env
-    env.close()
-
-
-@pytest.fixture
-def fresh_peg_tactile_env():
-    env = gym.make("ShadowHandPegTactile-v0")
     yield env
     env.close()

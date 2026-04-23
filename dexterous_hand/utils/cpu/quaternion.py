@@ -43,9 +43,13 @@ def random_quaternion(rng: np.random.Generator) -> np.ndarray:
     a2 = 2.0 * np.pi * u3
     return np.array([s2 * np.cos(a2), s1 * np.sin(a1), s1 * np.cos(a1), s2 * np.sin(a2)])
 
-def random_quaternion_within_angle(rng: np.random.Generator, max_angle_rad: float) -> np.ndarray:
+def random_quaternion_within_angle(
+    rng: np.random.Generator,
+    max_angle_rad: float,
+    min_angle_rad: float = 0.0,
+) -> np.ndarray:
 
-    if max_angle_rad >= np.pi * 2.0:
+    if max_angle_rad >= np.pi * 2.0 and min_angle_rad <= 0.0:
         return random_quaternion(rng)
 
     z = rng.uniform(-1.0, 1.0)
@@ -53,7 +57,8 @@ def random_quaternion_within_angle(rng: np.random.Generator, max_angle_rad: floa
     r = np.sqrt(1.0 - z * z)
     axis = np.array([r * np.cos(phi), r * np.sin(phi), z])
 
-    angle = rng.uniform(0.0, max_angle_rad)
+    lo = min(float(min_angle_rad), float(max_angle_rad))
+    angle = rng.uniform(lo, float(max_angle_rad))
     half = angle / 2.0
     s = np.sin(half)
     return np.array([np.cos(half), axis[0] * s, axis[1] * s, axis[2] * s])

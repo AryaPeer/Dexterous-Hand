@@ -65,7 +65,7 @@ class TestGraspParity:
 
             initial_obj_h = float(rng.uniform(0.4, 0.45))
             np_calc = GraspRewardCalculator(cfg, table_height=table_height)
-            np_calc.reset(initial_object_height=initial_obj_h, is_sphere=False)
+            np_calc.reset(initial_object_height=initial_obj_h)
             np_total, np_info = np_calc.compute(
                 finger_positions=finger_positions,
                 object_position=obj_pos,

@@ -10,8 +10,6 @@ from dexterous_hand.config import (
     RewardConfig,
     RewardWeights,
     SceneConfig,
-    TactileConfig,
-    TactileTrainConfig,
     TrainConfig,
 )
 
@@ -118,22 +116,6 @@ class TestConfigDefaults:
             step, clearance, p = stage
             assert 0.0 <= p <= 1.0
 
-    def test_tactile_config(self):
-        c = TactileConfig()
-        assert c.grid_size == 4
-        assert c.n_fingers == 5
-        assert c.n_fingers * c.grid_size**2 == 80
-
-    def test_tactile_train_config(self):
-        c = TactileTrainConfig()
-        assert isinstance(c.scene_config, PegSceneConfig)
-        assert isinstance(c.reward_config, PegRewardConfig)
-        assert c.curriculum_reference_timesteps == 40_000_000
-        assert len(c.curriculum_stages) == 5
-        assert isinstance(c.tactile_config, TactileConfig)
-        for stage in c.curriculum_stages:
-            assert len(stage) == 3
-
     def test_all_configs_instantiate(self):
 
         configs = [
@@ -149,8 +131,6 @@ class TestConfigDefaults:
             PegRewardWeights,
             PegRewardConfig,
             PegTrainConfig,
-            TactileConfig,
-            TactileTrainConfig,
         ]
         for cls in configs:
             obj = cls()
