@@ -75,8 +75,8 @@ def reorient_reward(
     dists = jnp.linalg.norm(finger_positions - cube_pos, axis=1)
     fingertip_distance = jnp.exp(-5.0 * jnp.mean(dists))
 
-    action_penalty = -0.002 * jnp.sum(actions**2)
-    action_rate_penalty = -0.001 * jnp.sum((actions - previous_actions) ** 2)
+    action_penalty = -0.005 * jnp.sum(actions**2)
+    action_rate_penalty = -0.002 * jnp.sum((actions - previous_actions) ** 2)
 
     contact_raw = contact_bonus_value * jnp.minimum(n_contacts / 3.0, 1.0)
     finger_contact_bonus = weights.contact_bonus * contact_raw
