@@ -18,8 +18,6 @@ class ReorientRewardCalculator:
         self.angular_progress_clip = config.angular_progress_clip
         self.tracking_k = config.tracking_k
         self.orientation_contact_alpha = config.orientation_contact_alpha
-        # initial_cube_pos used to be wired up for position_stability (zero
-        # weight since the audit). keep the arg for API symmetry; ignore.
         del initial_cube_pos
         self._success_steps = 0
         self._prev_ang_dist: float | None = None
@@ -58,19 +56,12 @@ class ReorientRewardCalculator:
         self._prev_ang_dist = float(ang_dist)
         info["reward/angular_progress"] = angular_progress
 
-        # single orientation term parameterized by alpha = unconditional fraction.
-        # at 2+ contacts: exp(-k·d) · 1 · weight(7.0); max 7.0 / step at ang_dist=0.
-        # at 0 contacts:  exp(-k·d) · alpha(~0.43) · weight(7.0); max ~3.0 / step.
-        # matches the pre-collapse magnitudes of orientation_tracking(3) +
-        # orientation_success(4) in their respective contact regimes.
         soft_contact_scale = min(num_fingers_in_contact / float(min_contacts), 1.0)
         alpha = self.orientation_contact_alpha
         orientation_gate = alpha + (1.0 - alpha) * soft_contact_scale
         orientation = float(np.exp(-self.tracking_k * ang_dist)) * orientation_gate
         info["reward/orientation"] = orientation
 
-        # success hold-count and target-reached predicate: require hitting the
-        # success_threshold with enough contacts for success_hold_steps.
         at_target = ang_dist < self.success_threshold
         if at_target and num_fingers_in_contact >= min_contacts:
             self._success_steps += 1
@@ -81,11 +72,6 @@ class ReorientRewardCalculator:
         cube_drop = self.drop_penalty_value if dropped else 0.0
         info["reward/cube_drop"] = cube_drop
 
-        # action_penalty: IsaacGymEnvs ShadowHand scale (-0.0002·||a||²) at
-        # weight 1.0. per-step cost ~ -0.0013 at 20 actions in [-1,1], well
-        # below the dense orientation term. no action-rate / smoothness
-        # penalty — neither Dactyl nor IsaacGymEnvs has one, and it
-        # discourages the fast finger motion reorientation requires.
         action_penalty = -0.0002 * float(np.sum(actions**2))
         info["reward/action_penalty"] = action_penalty
         del previous_actions
@@ -94,7 +80,6 @@ class ReorientRewardCalculator:
         finger_contact_bonus = self.weights.contact_bonus * contact_raw
         info["reward/finger_contact_bonus"] = finger_contact_bonus
 
-        # smooth ramp: exp(-2·n_contacts). 1.0 at n=0, 0.14 at n=1, 0.02 at n=2.
         no_contact_ramp = float(np.exp(-2.0 * num_fingers_in_contact))
         no_contact_raw = self.no_contact_penalty_value * no_contact_ramp
         no_contact_penalty = self.weights.no_contact * no_contact_raw
@@ -113,8 +98,6 @@ class ReorientRewardCalculator:
         info["metrics/angular_distance"] = ang_dist
         info["metrics/num_finger_contacts"] = float(num_fingers_in_contact)
         info["metrics/success_steps"] = float(self._success_steps)
-        # retained locals referenced by the API; suppress linter warnings for
-        # unused positional arguments.
         del cube_pos, cube_linvel, finger_positions
 
         return total, info, target_reached

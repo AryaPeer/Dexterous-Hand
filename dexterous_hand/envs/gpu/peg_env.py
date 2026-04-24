@@ -127,9 +127,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             # obs shape depends on model; only re-jit obs when the model rebuilds
             self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
 
-        # reset + step close over _p_pre_grasped (jax array attribute), so they
-        # must be re-jitted on every curriculum change even when clearance stays.
-        # _build_batched_step wraps step with the DR-apply layer via the base class.
+        # re-jit every curriculum change: reset + step close over _p_pre_grasped.
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
         self._batched_step = self._build_batched_step()
 
@@ -146,7 +144,6 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
         qpos = jnp.where(spawn_pre_grasped, self._init_qpos_grip, self._init_qpos_table)
 
-        # joint-pos init noise: ±0.05 rad (Dactyl scale). matches CPU env.
         hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
         noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.05, maxval=0.05)
         qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
@@ -309,9 +306,6 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         )
 
 
-        # success vs failure distinction. both set done, but mjx_vec_env reads
-        # info["is_success"] to decide truncation (bootstrap ok) vs termination
-        # (no bootstrap). audit D2.
         insertion_complete = (
             insertion_depth > self.reward_config.success_threshold * self._peg_length
         ) & (new_reward_state.insertion_hold_steps >= self.reward_config.peg_hold_steps)

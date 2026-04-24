@@ -11,10 +11,6 @@ from dexterous_hand.utils.cpu.mujoco_helpers import get_joint_qpos_qvel_range
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "shadow_hand"
 
 OBJECT_TYPES: dict[str, tuple[int, list[float]]] = {
-    # MJX's contact function table does not implement cylinder↔box pairs, so
-    # a cylinder object against the box table rejects at mjx.put_model time.
-    # Keeping the grasp target as a box matches the table geom and is
-    # well-supported across both MJX and MuJoCo CPU.
     "large_cube": (mujoco.mjtGeom.mjGEOM_BOX, [0.035, 0.035, 0.035]),
 }
 

@@ -77,10 +77,6 @@ class ShadowHandGraspEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
-        # OBJECT_TYPES only contains "large_cube" since the audit (B2) — previous
-        # cylinder/sphere options caused CPU↔GPU obs/reward drift. if you re-
-        # introduce objects, the object_type has to flow through to the reward
-        # via is_sphere or similar and into the GPU path identically.
         geom_type, geom_size = OBJECT_TYPES["large_cube"]
         half_h = get_object_half_height(geom_type, geom_size)
         obj_x = self.np_random.uniform(-0.05, 0.05)
@@ -91,10 +87,6 @@ class ShadowHandGraspEnv(gym.Env):
         self.data.qpos[s : s + 3] = [obj_x, obj_y, obj_z]
         self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
 
-        # joint-pos init noise: ±0.05 rad ≈ ±3°. matches Dactyl's initial
-        # randomization scale and is well inside every joint's range. prior
-        # ±0.01 was barely above machine noise; the policy saw nearly the
-        # same start state every episode.
         hand_qpos = self._init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
         noise = self.np_random.uniform(-0.05, 0.05, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
@@ -113,11 +105,6 @@ class ShadowHandGraspEnv(gym.Env):
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
 
-        # action smoothing is part of the env dynamics: SB3's replay buffer
-        # stores the raw action the policy emitted, but ctrl is a low-pass
-        # version of it. the agent still learns a self-consistent Q/V because
-        # the env is a black box from its perspective — if you eval a trained
-        # policy on an env without smoothing, it will be OOD. audit D1.
         action = np.clip(action, -1.0, 1.0)
         alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
         if alpha > 0.0:

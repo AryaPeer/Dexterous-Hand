@@ -66,12 +66,8 @@ class ShadowHandPegEnv(gym.Env):
         self._clearance = self.scene_config.clearance
         self._initial_peg_height = self.scene_config.table_height
 
-        # match the MJX peg env: keep both TABLE_TASK_FLEXION_BIAS and GRIP_BIAS
-        # initial-qpos snapshots so pre-grasp spawns start with fingers already
-        # curled, table spawns start in a neutral pose.
         self._init_qpos_table = self._build_biased_qpos(bias_map=None)
         self._init_qpos_grip = self._build_biased_qpos(bias_map=GRIP_BIAS)
-        # back-compat alias; old code read self._init_qpos, use table variant
         self._init_qpos = self._init_qpos_table
         self._grasp_site_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site"
@@ -109,14 +105,9 @@ class ShadowHandPegEnv(gym.Env):
 
         mujoco.mj_resetData(self.model, self.data)
 
-        # select initial hand pose based on whether the curriculum pre-grasps
-        # this episode (matches the MJX peg env's _init_qpos_grip vs
-        # _init_qpos_table selection).
         spawn_pre_grasped = self.np_random.random() < self._p_pre_grasped
         init_qpos = self._init_qpos_grip if spawn_pre_grasped else self._init_qpos_table
 
-        # joint-pos init noise: ±0.05 rad (Dactyl scale). prior ±0.01 was
-        # too tight and kept the policy seeing near-identical initial states.
         hand_qpos = init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
         noise = self.np_random.uniform(-0.05, 0.05, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
@@ -267,9 +258,7 @@ class ShadowHandPegEnv(gym.Env):
         )
         fell_off = bool(peg_pos[2] < self.scene_config.table_height - 0.1)
 
-        # success is reported as truncation (episode ends but state has value,
-        # so SAC/PPO can bootstrap from terminal_observation). fell_off is
-        # real termination (no bootstrap). this separation is D2 from the audit.
+        # success → truncation (bootstrap from terminal obs); fell_off → terminated.
         terminated = fell_off
         truncated = insertion_success and not fell_off
 

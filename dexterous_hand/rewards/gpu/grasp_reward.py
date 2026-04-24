@@ -97,13 +97,10 @@ def grasp_reward(
 
     was_lifted_next = state.was_lifted | (lift_height >= lift_target)
 
-    # drop penalty: every drop pays; was_lifted clears so a re-lift is credited.
     just_dropped = state.was_lifted & (lift_height < 0.01)
     drop = jnp.where(just_dropped, drop_penalty_value, 0.0)
     was_lifted = jnp.where(just_dropped, False, was_lifted_next)
 
-    # success: sparse, fires once object is lifted ≥ target with ≥3 contacts
-    # and low speed, held for success_hold_steps. IsaacGymEnvs convention.
     at_target = (lift_height >= lift_target) & (n_contacts >= 3) & (obj_speed < 0.2)
     new_success_hold = jnp.where(
         at_target, state.success_hold_counter + 1, jnp.array(0, dtype=jnp.int32)
@@ -118,9 +115,6 @@ def grasp_reward(
     idle_raw = jnp.where(new_idle_steps >= idle_grace_steps, no_contact_idle_penalty, 0.0)
     idle_penalty = weights.idle * idle_raw
 
-    # action_penalty: IsaacGymEnvs ShadowHand/FrankaCubeStack scale.
-    # no action-RATE term: not in Dactyl / IsaacGymEnvs, and it discourages
-    # the fast finger motion manipulation needs.
     action_penalty = -0.0002 * jnp.sum(actions**2)
 
     total = (

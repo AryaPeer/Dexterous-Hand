@@ -99,7 +99,6 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
                          
         qpos = self._init_qpos
 
-        # joint-pos init noise: ±0.05 rad (Dactyl scale). matches CPU env.
         hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
         noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.05, maxval=0.05)
         qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)

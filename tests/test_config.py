@@ -25,7 +25,9 @@ class TestConfigDefaults:
     def test_reward_weights(self):
         w = RewardWeights()
         assert w.reaching == 1.0
-        assert w.grasping == 3.0
+        assert w.grasping == 1.0
+        assert w.lifting == 8.0
+        assert w.holding == 10.0
         assert w.opposition == 1.0
 
     def test_reward_config(self):

@@ -15,19 +15,12 @@ from dexterous_hand.config import DomainRandomization
 
 
 class DRParams(NamedTuple):
-    # per-env multipliers applied to the shared mjx_model inside step.
-    # shapes match the model leaves: (nbody,), (ngeom,), (nu,). when DR is
-    # disabled these are all ones and _apply_dr is a no-op in outcome.
     mass_mult: jnp.ndarray
     friction_mult: jnp.ndarray
     gain_mult: jnp.ndarray
 
 
 def _apply_dr(mjx_model: Any, dr_params: DRParams) -> Any:
-    # multiplicative jitter on body_mass, first slot of geom_friction (sliding),
-    # first slot of actuator_gainprm (linear gain). torsional/rolling friction
-    # and secondary gain slots left alone. model pytree is reused — .replace()
-    # creates a shallow copy with only the three leaves modified.
     return mjx_model.replace(
         body_mass=mjx_model.body_mass * dr_params.mass_mult,
         geom_friction=mjx_model.geom_friction.at[:, 0].multiply(dr_params.friction_mult),
@@ -71,9 +64,6 @@ class MjxVecEnv(VecEnv):
         self._ctrl_low = jnp.array(self._cpu_model.actuator_ctrlrange[:n_act, 0])
         self._ctrl_high = jnp.array(self._cpu_model.actuator_ctrlrange[:n_act, 1])
 
-        # reset / get_obs do not depend on mass/friction/gain (kinematics only
-        # at the reset state, and obs reads xpos/site_xpos). so DR is applied
-        # ONLY inside step. reset/get_obs keep the shared mjx_model via in_axes=None.
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
         self._batched_get_obs = jax.jit(jax.vmap(self._get_obs_single, in_axes=(None, 0, 0)))
         self._batched_step = self._build_batched_step()
@@ -89,9 +79,6 @@ class MjxVecEnv(VecEnv):
         self._pending_infos: list[dict] | None = None
 
     def _build_batched_step(self) -> Any:
-        # wrap _step_single with a DR-applying layer at vmap time. the shared
-        # mjx_model stays closed over; per-env DRParams are vmapped with the
-        # rest of the batched args.
         def _dr_step(
             mjx_model: Any, dr_params: DRParams, data: Any, state: Any, action: jax.Array
         ) -> Any:
@@ -123,9 +110,6 @@ class MjxVecEnv(VecEnv):
         raise NotImplementedError
 
     def _sample_dr_params_single(self, key: jax.Array) -> DRParams:
-        # sample one env's worth of DR multipliers. if DR disabled we return
-        # ones so _apply_dr is a functional no-op (wastes a few FLOPs but
-        # keeps the call path uniform).
         nbody = int(self._cpu_model.nbody)
         ngeom = int(self._cpu_model.ngeom)
         nu = int(self._cpu_model.nu)
@@ -150,11 +134,8 @@ class MjxVecEnv(VecEnv):
         return jax.vmap(self._sample_dr_params_single)(keys)
 
     def _noisy_obs(self, obs: jax.Array) -> np.ndarray:
-        # additive Gaussian noise on policy-facing observations (obs-level DR).
-        # pure no-op when obs_noise_std == 0.0. np.array (not np.asarray) is
-        # required in both branches: np.asarray(jax_array) can zero-copy-wrap
-        # the immutable device buffer, and step_async mutates
-        # obs_np[i] = reset_obs_np[i]. commit d660f67 baked this in; keep it.
+        # np.array (not np.asarray) required: np.asarray(jax_array) wraps the
+        # immutable device buffer, and step_async mutates obs_np[i] in place.
         if self._obs_noise_std <= 0.0:
             return np.array(obs)
         self._obs_noise_key, subkey = jax.random.split(self._obs_noise_key)
@@ -170,7 +151,6 @@ class MjxVecEnv(VecEnv):
 
         self._env_keys = jax.random.split(jax.random.fold_in(self._master_key, 0), self._num_envs)
 
-        # fresh DR multipliers for every env on full reset
         self._dr_key, dr_subkey = jax.random.split(self._dr_key)
         self._dr_params_batch = self._sample_dr_params_batch(dr_subkey)
 
@@ -196,10 +176,7 @@ class MjxVecEnv(VecEnv):
         self._step_count = self._step_count + 1
         timed_out = self._step_count >= self._max_episode_steps
 
-        # success (if the env signals one via info) is treated as truncation
-        # so SAC bootstraps from the terminal obs — the task was accomplished
-        # and the reset state has real value. failure (fall) keeps dones=True
-        # with no truncated flag, so the critic gets V=0. audit D2.
+        # success → truncation (bootstrap from terminal obs); fall → terminated.
         is_success_jnp = reward_info.get("is_success") if reward_info is not None else None
         if is_success_jnp is None:
             is_success = jnp.zeros(self._num_envs, dtype=bool)

@@ -196,9 +196,6 @@ def build_peg_scene(
 
 
 
-    # solref aligned with the hand's solref="0.005 1" in right_hand.xml.
-    # MuJoCo picks the softer of the two time constants at mixed contacts, so
-    # asymmetric values caused normal-force oscillation at peg-hand contact.
     peg_kwargs = dict(
         contype=3,
         conaffinity=3,

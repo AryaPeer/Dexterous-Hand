@@ -15,8 +15,6 @@ class ReorientRewardState(NamedTuple):
 
 def init_reorient_reward_state(initial_cube_pos: jnp.ndarray) -> ReorientRewardState:
 
-    # initial_cube_pos is kept in the state for API symmetry with the CPU
-    # reward (the audit removed the position_stability term that used it).
     return ReorientRewardState(
         success_steps=jnp.array(0, dtype=jnp.int32),
         prev_ang_dist=jnp.array(0.0),
@@ -54,9 +52,6 @@ def reorient_reward(
     angular_progress = jnp.where(state.has_prev, state.prev_ang_dist - ang_dist, 0.0)
     angular_progress = jnp.clip(angular_progress, -angular_progress_clip, angular_progress_clip)
 
-    # single orientation term parameterized by alpha = unconditional fraction.
-    # matches the pre-collapse sum of orientation_tracking (weight 3) and
-    # orientation_success (weight 4).
     soft_contact_scale = jnp.minimum(n_contacts / float(min_contacts_for_rotation), 1.0)
     orientation_gate = orientation_contact_alpha + (1.0 - orientation_contact_alpha) * soft_contact_scale
     orientation = jnp.exp(-tracking_k * ang_dist) * orientation_gate
@@ -72,16 +67,12 @@ def reorient_reward(
 
     cube_drop = jnp.where(dropped, drop_penalty_value, 0.0)
 
-    # action_penalty: IsaacGymEnvs ShadowHand scale (-0.0002·||a||²) at
-    # weight 1.0. no action-rate penalty — not in Dactyl / IsaacGymEnvs.
-    # `previous_actions` retained in signature for API stability.
     del previous_actions
     action_penalty = -0.0002 * jnp.sum(actions**2)
 
     contact_raw = contact_bonus_value * jnp.minimum(n_contacts / 3.0, 1.0)
     finger_contact_bonus = weights.contact_bonus * contact_raw
 
-    # smooth ramp: exp(-2·n_contacts). 1.0 at n=0, 0.14 at n=1, 0.02 at n=2.
     no_contact_ramp = jnp.exp(-2.0 * n_contacts)
     no_contact_raw = no_contact_penalty_value * no_contact_ramp
     no_contact_penalty = weights.no_contact * no_contact_raw
@@ -114,8 +105,6 @@ def reorient_reward(
         "metrics/num_finger_contacts": n_contacts,
         "metrics/success_steps": new_success_steps.astype(jnp.float32),
     }
-    # silence "unused arg" linter: cube_pos, cube_linvel, finger_positions
-    # kept for call-site symmetry with CPU.
     del cube_pos, cube_linvel, finger_positions
 
     return total, new_state, info, target_reached

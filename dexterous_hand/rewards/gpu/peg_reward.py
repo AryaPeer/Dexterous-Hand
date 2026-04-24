@@ -94,9 +94,6 @@ def peg_reward(
     lift_height = jnp.maximum(peg_height - state.initial_peg_height, 0.0)
     lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
 
-    # the drop predicate below reads state.was_lifted (pre-step) — latching
-    # happens in was_lifted_next and is only committed to state if we did NOT
-    # just drop. mirrors the grasp_reward fix.
     was_lifted_next = state.was_lifted | (lift_height >= lift_target)
 
 
@@ -127,17 +124,10 @@ def peg_reward(
     force_excess = jnp.maximum(0.0, contact_force_magnitude - force_threshold)
     force_penalty = -0.01 * force_excess**2
 
-    # charge the penalty on every drop; clear was_lifted so a re-lift can be
-    # credited again, but do NOT zero the penalty on regrasp — the drop
-    # happened and we pay for it. mirrors the grasp_reward fix.
     just_dropped = state.was_lifted & (lift_height < 0.01)
     drop = jnp.where(just_dropped, drop_penalty_value, 0.0)
     was_lifted = jnp.where(just_dropped, False, was_lifted_next)
 
-    # action_penalty: IsaacGymEnvs/Factory scale -0.0002·||a||² at weight 1.0.
-    # no action-rate/smoothness term — not in Factory, IndustReal, or
-    # IsaacGymEnvs; discouraged fast finger motion that insertion alignment
-    # requires. `previous_actions` retained in signature for API stability.
     del previous_actions
     action_penalty = -0.0002 * jnp.sum(actions**2)
 

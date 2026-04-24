@@ -67,9 +67,6 @@ class ShadowHandReorientEnv(gym.Env):
         self._target_quat = np.array([1.0, 0.0, 0.0, 0.0])
         self._max_target_angle = 0.5236                                    
         self._targets_reached = 0
-        # match the MJX reorient env: GRIP_BIAS starts fingers pre-curled around
-        # the cube so a cpu-eval of a gpu-trained policy sees the same initial
-        # hand configuration it trained on.
         self._init_qpos = self.data.qpos.copy()
         apply_flexion_bias(self._init_qpos, self.model, bias_map=GRIP_BIAS)
         self._palm_z: float = 0.0
@@ -90,9 +87,6 @@ class ShadowHandReorientEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
-        # joint-pos init noise: ±0.05 rad (Dactyl scale). prior ±0.01 was
-        # below the variance of the target distribution, so the policy saw
-        # near-identical initial states every episode — exploration killer.
         hand_qpos = self._init_qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end]
         noise = self.np_random.uniform(-0.05, 0.05, size=hand_qpos.shape)
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
@@ -103,9 +97,6 @@ class ShadowHandReorientEnv(gym.Env):
         palm_pos = get_palm_position(self.data, self.nm.palm_body_id)
         self._palm_z = float(palm_pos[2])
 
-        # cube pose init noise: Dactyl scale. ±0.008 m position, 0.3 rad
-        # initial rotation from identity. prior ±0.004 and 0.1 rad gave
-        # essentially the same cube pose every episode.
         s = self.nm.cube_qpos_start
         cube_pos = self.data.site_xpos[self._grasp_site_id].copy()
         cube_pos += self.np_random.uniform(-0.008, 0.008, size=3)
@@ -195,10 +186,6 @@ class ShadowHandReorientEnv(gym.Env):
         return obs, float(reward), terminated, False, info
 
     def _sample_target_quat(self, cube_quat: np.ndarray) -> np.ndarray:
-        # reject candidates whose angular distance from the CURRENT cube is
-        # below min_angle_floor — ensures the goal is meaningfully far from
-        # where the cube is right now, not just from identity. matters most
-        # after a mid-episode target reach (cube has rotated away from identity).
         min_angle_floor = min(self.scene_config.target_min_angle, 0.8 * self._max_target_angle)
         best_quat: np.ndarray | None = None
         best_dist = -1.0

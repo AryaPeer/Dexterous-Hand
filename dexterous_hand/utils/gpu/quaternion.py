@@ -51,11 +51,6 @@ def sample_target_quat_rel_to_cube(
     n_candidates: int = 8,
 ) -> jnp.ndarray:
 
-    # vmapped rejection sampling under jit: draw n_candidates targets
-    # (each constrained only in angle from identity), measure each one's
-    # angular distance to the current cube, pick the first that clears
-    # min_angle_rad. if none does, fall back to the candidate farthest
-    # from the cube (preserves the CPU 32-try fallback semantics).
     keys = jax.random.split(key, n_candidates)
     sample_one = lambda k: random_quaternion_within_angle(k, max_angle_rad)
     candidates = jax.vmap(sample_one)(keys)

@@ -98,18 +98,12 @@ class GraspRewardCalculator:
         if lift_height >= self.lift_target:
             self._was_lifted = True
 
-        # drop penalty: charged on every drop after a lift. clears was_lifted
-        # so a re-lift can be credited again, but the penalty itself is NOT
-        # zeroed on regrasp (would be a gaming loop).
         just_dropped = was_lifted_prev and lift_height < 0.01
         drop = self.drop_penalty_value if just_dropped else 0.0
         if just_dropped:
             self._was_lifted = False
         info["reward/drop"] = drop
 
-        # success bonus: sparse terminal when object lifted with ≥3 contacts
-        # held for success_hold_steps. matches IsaacGymEnvs ShadowHand /
-        # FrankaCubeStack success_bonus=250 convention.
         at_target = lift_height >= self.lift_target and n_contacts >= 3 and obj_speed < 0.2
         if at_target:
             self._success_hold_counter += 1
@@ -130,10 +124,6 @@ class GraspRewardCalculator:
         idle_penalty = self.weights.idle * idle_raw
         info["reward/idle_penalty"] = idle_penalty
 
-        # action_penalty: IsaacGymEnvs ShadowHand / FrankaCubeStack scale
-        # (-0.0002·||a||²) at weight 1.0. no action-RATE penalty: neither
-        # Dactyl nor IsaacGymEnvs use one, and it discourages the fast finger
-        # motion manipulation needs.
         action_penalty = -0.0002 * float(np.sum(actions**2))
         info["reward/action_penalty"] = action_penalty
 
