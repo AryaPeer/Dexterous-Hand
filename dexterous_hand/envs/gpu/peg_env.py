@@ -58,6 +58,11 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
     ) -> None:
         self.scene_config = scene_config or PegSceneConfig()
         self.reward_config = reward_config or PegRewardConfig()
+        if self.scene_config.spawn_max_radius <= self.scene_config.spawn_min_radius:
+            raise ValueError(
+                f"spawn_max_radius ({self.scene_config.spawn_max_radius}) must exceed "
+                f"spawn_min_radius ({self.scene_config.spawn_min_radius})"
+            )
         self._episode_limit = max_episode_steps
         self._reward_weights = self.reward_config.weights
 
@@ -155,7 +160,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
 
         min_r = float(self.scene_config.spawn_min_radius)
-        max_r = 0.05 * math.sqrt(2.0)
+        max_r = float(self.scene_config.spawn_max_radius)
         r = jax.random.uniform(k2, minval=min_r, maxval=max_r)
         theta = jax.random.uniform(k3, minval=0.0, maxval=2.0 * math.pi)
         hole_x = float(self.scene_config.hole_offset[0])
@@ -181,7 +186,19 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         mjx_data = mjx_data.replace(qpos=qpos, qvel=jnp.zeros(mjx_model.nv))
         mjx_data = mjx.forward(mjx_model, mjx_data)
 
-        initial_peg_height = peg_xyz[2]
+        # settle the contact solver before the policy starts acting. with
+        # p_pre_grasped > 0 the peg is teleported inside closed fingers, which
+        # is exactly the kind of geometric interpenetration that produces
+        # impulse spikes and NaN qpos under SAC's high-entropy early actions.
+        zero_ctrl = jnp.zeros(mjx_model.nu)
+        mjx_data = mjx_data.replace(ctrl=zero_ctrl)
+
+        def _settle(data: Any, _: Any) -> tuple[Any, None]:
+            return mjx.step(mjx_model, data), None
+
+        mjx_data, _ = jax.lax.scan(_settle, mjx_data, None, length=5)
+
+        initial_peg_height = mjx_data.xpos[nm.peg_body_id][2]
 
         n_act = self._action_size()
         env_state = PegEnvState(
@@ -344,7 +361,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         )
 
         hole_pos = mjx_data.xpos[nm.hole_body_id]
-        hole_quat = jnp.array([1.0, 0.0, 0.0, 0.0])                           
+        hole_quat = mjx_data.xquat[nm.hole_body_id]
 
         rel_pos, ang_error = get_peg_hole_relative_jax(
             mjx_data.xpos, mjx_data.xmat, nm.peg_body_id, nm.hole_body_id

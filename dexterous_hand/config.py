@@ -189,6 +189,7 @@ class PegSceneConfig:
     hole_depth: float = 0.06
     hole_offset: tuple[float, float] = (0.0, 0.0)
     spawn_min_radius: float = 0.04
+    spawn_max_radius: float = 0.05 * 1.4142135623730951
     peg_radius: float = 0.008
     peg_half_length: float = 0.03
     peg_mass: float = 0.02
@@ -305,7 +306,7 @@ class MjxPegTrainConfig:
     gamma: float = 0.99
     train_freq: int = 1
     gradient_steps: int = 8
-    ent_coef: str = "auto"
+    ent_coef: float | str = 0.05
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     seed: int = 42
     norm_obs: bool = True

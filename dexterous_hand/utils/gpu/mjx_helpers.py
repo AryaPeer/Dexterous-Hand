@@ -63,7 +63,8 @@ def get_insertion_depth_jax(
 
     peg_rot = xmat[peg_body_id].reshape(3, 3)
     peg_axis = peg_rot[:, 2]
-    peg_tip = peg_pos - peg_axis * (peg_half_length + peg_radius)
+    sign = jnp.sign(jnp.dot(peg_axis, hole_axis))
+    peg_tip = peg_pos - sign * peg_axis * (peg_half_length + peg_radius)
 
     rel = hole_pos - peg_tip
     depth = jnp.dot(rel, hole_axis)

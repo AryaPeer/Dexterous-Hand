@@ -107,12 +107,11 @@ class PegRewardCalculator:
             self._was_lifted = True
 
         lateral_dist = float(np.linalg.norm(peg_position[:2] - hole_position[:2]))
-        axis_align = float(np.dot(peg_axis, hole_axis))
+        axis_align = abs(float(np.dot(peg_axis, hole_axis)))
         lateral_factor_align = 1.0 - float(np.tanh(self.lateral_gate_k * lateral_dist))
         peg_clearance = max(peg_height - self.table_height - self.peg_length * 0.5, 0.0)
         align_weight = _sigmoid((peg_clearance - 0.02) * 150.0)
-        raw_align = axis_align * lateral_factor_align
-        align = max(raw_align, 0.0) * align_weight * contact_scale
+        align = axis_align * lateral_factor_align * align_weight * contact_scale
         info["reward/align"] = align
 
                                                                                    

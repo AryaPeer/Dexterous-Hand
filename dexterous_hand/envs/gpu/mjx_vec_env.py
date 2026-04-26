@@ -176,6 +176,14 @@ class MjxVecEnv(VecEnv):
         self._step_count = self._step_count + 1
         timed_out = self._step_count >= self._max_episode_steps
 
+        # NaN guard: a single env's MJX state can blow up under aggressive SAC
+        # exploration. Without this, the NaN propagates through reward → grad
+        # update and poisons the whole policy permanently. Force-reset those
+        # envs and zero their reward so the bad transition contributes nothing.
+        bad = jnp.any(jnp.isnan(new_data.qpos), axis=1) | jnp.any(jnp.isnan(obs), axis=1)
+        rewards = jnp.where(bad, 0.0, jnp.where(jnp.isnan(rewards), 0.0, rewards))
+        obs = jnp.where(bad[:, None], 0.0, jnp.nan_to_num(obs, nan=0.0))
+
         # success → truncation (bootstrap from terminal obs); fall → terminated.
         is_success_jnp = reward_info.get("is_success") if reward_info is not None else None
         if is_success_jnp is None:
@@ -184,7 +192,7 @@ class MjxVecEnv(VecEnv):
             is_success = is_success_jnp.astype(bool)
 
         truncated_only = (timed_out & ~dones) | is_success
-        dones = dones | timed_out
+        dones = dones | timed_out | bad
 
         needs_reset = dones
         if jnp.any(needs_reset):
@@ -246,7 +254,10 @@ class MjxVecEnv(VecEnv):
         reward_info_np: dict[str, np.ndarray] = {}
         if reward_info is not None:
             for k, v in reward_info.items():
-                reward_info_np[k] = np.asarray(v)
+                arr = np.asarray(v)
+                if np.issubdtype(arr.dtype, np.floating):
+                    arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+                reward_info_np[k] = arr
 
         infos: list[dict[str, Any]] = []
         for i in range(self._num_envs):

@@ -100,12 +100,11 @@ def peg_reward(
 
 
     lateral_dist = jnp.linalg.norm(peg_position[:2] - hole_position[:2])
-    axis_align = jnp.dot(peg_axis, hole_axis)
+    axis_align = jnp.abs(jnp.dot(peg_axis, hole_axis))
     lateral_factor_align = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
     peg_clearance = jnp.maximum(peg_height - table_height - peg_length * 0.5, 0.0)
     align_weight = _sigmoid((peg_clearance - 0.02) * 150.0)
-    raw_align = axis_align * lateral_factor_align
-    align = jnp.maximum(raw_align, 0.0) * align_weight * contact_scale
+    align = axis_align * lateral_factor_align * align_weight * contact_scale
 
                                                                                   
     lateral_factor_depth = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
