@@ -131,8 +131,13 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         qpos = mjx_data.qpos.at[s : s + 3].set(cube_pos)
         qpos = qpos.at[s + 3 : s + 7].set(init_quat)
 
-        mjx_data = mjx_data.replace(qpos=qpos)
-        mjx_data = mjx.forward(mjx_model, mjx_data)
+        zero_ctrl = jnp.zeros(mjx_model.nu)
+        mjx_data = mjx_data.replace(qpos=qpos, ctrl=zero_ctrl)
+
+        def _settle(data: Any, _: Any) -> tuple[Any, None]:
+            return mjx.step(mjx_model, data), None
+
+        mjx_data, _ = jax.lax.scan(_settle, mjx_data, None, length=5)
 
         min_angle_floor = jnp.minimum(
             jnp.asarray(self._target_min_angle), 0.8 * self._max_target_angle
