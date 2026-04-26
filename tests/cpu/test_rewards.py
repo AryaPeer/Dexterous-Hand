@@ -511,7 +511,7 @@ class TestPegReward:
     def test_lift_scales_with_contact_count(self):
         calc = self.make_calc()
         calc.reset(initial_peg_height=self.TABLE_HEIGHT)
-                                                                                   
+
         _, info_two = calc.compute(
             **self._default_kwargs(
                 peg_height=self.TABLE_HEIGHT + 0.1,
@@ -519,12 +519,12 @@ class TestPegReward:
                 contact_finger_indices={0, 1},
             )
         )
-        assert_allclose(info_two["reward/lift"], 2.0 / 3.0, rtol=1e-6)
+        assert_allclose(info_two["reward/lift"], 0.3 + 0.7 * (2.0 / 3.0), rtol=1e-6)
 
-    def test_lift_requires_contact(self):
+    def test_lift_floor_with_no_contact(self):
         calc = self.make_calc()
         _, info = calc.compute(**self._default_kwargs(peg_height=0.5, num_fingers_in_contact=0))
-        assert_allclose(info["reward/lift"], 0.0)
+        assert_allclose(info["reward/lift"], 1.0 * 0.3, rtol=1e-6)
 
     def test_insertion_depth_reward(self):
         calc = self.make_calc()
@@ -584,7 +584,7 @@ class TestPegReward:
             _, info = calc.compute(**kwargs)
                                                                          
                                                               
-        assert_allclose(info["reward/complete"], 2000.0)
+        assert_allclose(info["reward/complete"], 250.0)
 
     def test_force_penalty_above_threshold(self):
         calc = self.make_calc()

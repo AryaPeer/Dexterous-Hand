@@ -85,7 +85,8 @@ class GraspRewardCalculator:
         grasping = contact_scale * (0.3 + 0.7 * opposition)
         info["reward/grasping"] = grasping
 
-        lifting = float(min(lift_height / self.lift_target, 1.5)) * contact_scale
+        contact_scale_lift = 0.3 + 0.7 * contact_scale
+        lifting = float(min(lift_height / self.lift_target, 1.5)) * contact_scale_lift
         info["reward/lifting"] = lifting
 
         obj_speed = float(np.linalg.norm(object_linear_velocity))

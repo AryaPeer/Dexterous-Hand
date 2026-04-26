@@ -198,6 +198,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             nm.cube_qpos_start,
             nm.cube_qvel_start,
         )
+        cube_quat = cube_quat / jnp.maximum(jnp.linalg.norm(cube_quat), 1e-6)
 
         _, contact_mask = get_finger_touch_from_sensors(mjx_data.sensordata, self._finger_touch_adr)
 
@@ -286,6 +287,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             nm.cube_qpos_start,
             nm.cube_qvel_start,
         )
+        cube_quat = cube_quat / jnp.maximum(jnp.linalg.norm(cube_quat), 1e-6)
 
         fingertip_pos = get_fingertip_positions_jax(mjx_data.site_xpos, self._fingertip_site_ids)
         fingertip_cube_dists = jnp.linalg.norm(fingertip_pos - cube_pos, axis=1)

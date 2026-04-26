@@ -88,7 +88,8 @@ def grasp_reward(
     contact_scale = jnp.minimum(n_contacts / 3.0, 1.0)
     grasping = contact_scale * (0.3 + 0.7 * opposition)
 
-    lifting = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
+    contact_scale_lift = 0.3 + 0.7 * contact_scale
+    lifting = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale_lift
 
     obj_speed = jnp.linalg.norm(object_linear_velocity)
     height_gate = _sigmoid(hold_height_k * (lift_height - lift_target + 0.04))

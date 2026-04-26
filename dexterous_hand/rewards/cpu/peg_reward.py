@@ -99,7 +99,8 @@ class PegRewardCalculator:
                                                                              
                                                              
         lift_height = max(peg_height - self._initial_peg_height, 0.0)
-        lift = float(min(lift_height / self.lift_target, 1.5)) * contact_scale
+        contact_scale_lift = 0.3 + 0.7 * contact_scale
+        lift = float(min(lift_height / self.lift_target, 1.5)) * contact_scale_lift
         info["reward/lift"] = lift
 
         was_lifted_prev = self._was_lifted

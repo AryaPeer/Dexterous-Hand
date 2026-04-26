@@ -92,7 +92,8 @@ def peg_reward(
 
 
     lift_height = jnp.maximum(peg_height - state.initial_peg_height, 0.0)
-    lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
+    contact_scale_lift = 0.3 + 0.7 * contact_scale
+    lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale_lift
 
     was_lifted_next = state.was_lifted | (lift_height >= lift_target)
 

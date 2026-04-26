@@ -83,7 +83,7 @@ class TestConfigDefaults:
 
     def test_peg_reward_config(self):
         c = PegRewardConfig()
-        assert c.complete_bonus == 2000.0
+        assert c.complete_bonus == 250.0
         assert c.force_threshold == 15.0
         assert c.idle_stage0_penalty == -0.3
         assert c.weights.opposition == 1.0

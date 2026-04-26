@@ -95,7 +95,7 @@ class ReorientRewardConfig:
     drop_height_offset: float = 0.05
     contact_bonus: float = 0.5
     no_contact_penalty: float = -0.25
-    min_contacts_for_rotation: int = 2
+    min_contacts_for_rotation: int = 1
     angular_progress_clip: float = 0.2
     tracking_k: float = 2.0
     orientation_contact_alpha: float = 3.0 / 7.0
@@ -164,7 +164,7 @@ class PegRewardConfig:
 
     weights: PegRewardWeights = field(default_factory=PegRewardWeights)
     drop_penalty: float = -20.0
-    complete_bonus: float = 2000.0
+    complete_bonus: float = 250.0
     depth_reward_scale: float = 10.0
     force_threshold: float = 15.0
     idle_stage0_penalty: float = -0.3
@@ -306,7 +306,7 @@ class MjxPegTrainConfig:
     gamma: float = 0.99
     train_freq: int = 1
     gradient_steps: int = 8
-    ent_coef: float | str = 0.05
+    ent_coef: float | str = "auto"
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     seed: int = 42
     norm_obs: bool = True
