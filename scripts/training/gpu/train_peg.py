@@ -9,13 +9,20 @@ from stable_baselines3.common.vec_env import VecMonitor, VecNormalize
 import wandb
 from wandb.integration.sb3 import WandbCallback
 
+import dexterous_hand.envs  # noqa: F401  - register gym ids for CPU eval env
 from dexterous_hand.config import MjxPegTrainConfig
 from dexterous_hand.curriculum.callbacks import (
     AssemblyCurriculumCallback,
     scale_stage_starts,
 )
 from dexterous_hand.envs.gpu.peg_env import ShadowHandPegMjxEnv
-from scripts.training._common import RewardInfoLoggerCallback, setup_sb3_logger
+from scripts.training._common import (
+    RewardInfoLoggerCallback,
+    VecNormSyncEvalCallback,
+    compute_eval_freq,
+    make_cpu_eval_env,
+    setup_sb3_logger,
+)
 
 def train(config: MjxPegTrainConfig) -> None:
 
@@ -73,9 +80,29 @@ def train(config: MjxPegTrainConfig) -> None:
 
     setup_sb3_logger(model, run_dir)
 
+    stage0_clearance, stage0_p_pre_grasped = curriculum_stages[0][1], curriculum_stages[0][2]
+    eval_env = make_cpu_eval_env(
+        env_id="ShadowHandPeg-v0",
+        seed=config.seed + 10_000,
+        scene_config=config.scene_config,
+        reward_config=config.reward_config,
+        norm_obs=config.norm_obs,
+        post_make=lambda env: env.set_curriculum_params(
+            clearance=stage0_clearance,
+            p_pre_grasped=stage0_p_pre_grasped,
+        ),
+    )
+
     callbacks = [
         curriculum_callback,
         RewardInfoLoggerCallback(),
+        VecNormSyncEvalCallback(
+            eval_env,
+            best_model_save_path=str(run_dir / "best"),
+            eval_freq=compute_eval_freq(config.total_timesteps, config.num_envs),
+            n_eval_episodes=10,
+            deterministic=True,
+        ),
         CheckpointCallback(
             save_freq=max(500_000 // config.num_envs, 1),
             save_path=str(run_dir / "checkpoints"),
@@ -100,11 +127,12 @@ def train(config: MjxPegTrainConfig) -> None:
     print(f"Saved to {run_dir}")
     wandb.finish()
     vec_env.close()
+    eval_env.close()
 
 def parse_args() -> MjxPegTrainConfig:
     parser = argparse.ArgumentParser(description="Train Shadow Hand peg-in-hole (MJX + SBX SAC)")
     parser.add_argument("--num-envs", type=int, default=2048)
-    parser.add_argument("--total-timesteps", type=int, default=40_000_000)
+    parser.add_argument("--total-timesteps", type=int, default=60_000_000)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--seed", type=int, default=42)

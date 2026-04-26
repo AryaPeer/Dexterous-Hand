@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
+import gymnasium as gym
 import numpy as np
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.logger import configure
-from stable_baselines3.common.vec_env import VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor, VecNormalize
 
 
 class VecNormSyncEvalCallback(EvalCallback):
@@ -16,6 +19,56 @@ class VecNormSyncEvalCallback(EvalCallback):
         if isinstance(self.training_env, VecNormalize) and isinstance(self.eval_env, VecNormalize):
             self.eval_env.obs_rms = self.training_env.obs_rms
         return super()._on_step()
+
+
+def make_cpu_eval_env(
+    env_id: str,
+    seed: int,
+    scene_config: Any,
+    reward_config: Any,
+    norm_obs: bool,
+    post_make: callable | None = None,
+) -> VecNormalize | VecMonitor:
+    """Spin up a single-worker CPU mujoco env wrapped as VecNormalize(training=False).
+
+    Used by GPU training scripts so SB3's EvalCallback can save best-of-eval
+    checkpoints without needing a second MJX instance. ``post_make`` is an
+    optional callable applied to the unwrapped gym env after construction
+    (e.g. to pin the peg curriculum to stage 0)."""
+
+    def _init() -> gym.Env:  # type: ignore[type-arg]
+        env = gym.make(
+            env_id,
+            scene_config=deepcopy(scene_config),
+            reward_config=deepcopy(reward_config),
+        )
+        if post_make is not None:
+            post_make(env.unwrapped)
+        env.reset(seed=seed)
+        return env
+
+    eval_env: Any = DummyVecEnv([_init])
+    eval_env = VecMonitor(eval_env)
+    if norm_obs:
+        eval_env = VecNormalize(
+            eval_env,
+            norm_obs=True,
+            norm_reward=False,
+            clip_obs=10.0,
+            training=False,
+        )
+    return eval_env
+
+
+def compute_eval_freq(total_timesteps: int, num_envs: int, target_evals: int = 25) -> int:
+    """Eval-callback frequency that scales sensibly across sanity vs full runs.
+
+    Returns ``eval_freq`` in *vec-steps* (what ``EvalCallback`` actually counts).
+    Aims for ~``target_evals`` evals across the whole run, with a minimum spacing
+    of 500K timesteps so short sanity runs don't hammer the CPU eval env.
+    """
+    interval_timesteps = max(total_timesteps // target_evals, 500_000)
+    return max(interval_timesteps // num_envs, 1)
 
 
 class RewardInfoLoggerCallback(BaseCallback):

@@ -9,13 +9,20 @@ from stable_baselines3.common.vec_env import VecMonitor, VecNormalize
 import wandb
 from wandb.integration.sb3 import WandbCallback
 
+import dexterous_hand.envs  # noqa: F401  - register gym ids for CPU eval env
 from dexterous_hand.config import MjxReorientTrainConfig
 from dexterous_hand.curriculum.callbacks import (
     ReorientCurriculumCallback,
     scale_stage_starts,
 )
 from dexterous_hand.envs.gpu.reorient_env import ShadowHandReorientMjxEnv
-from scripts.training._common import RewardInfoLoggerCallback, setup_sb3_logger
+from scripts.training._common import (
+    RewardInfoLoggerCallback,
+    VecNormSyncEvalCallback,
+    compute_eval_freq,
+    make_cpu_eval_env,
+    setup_sb3_logger,
+)
 
 def train(config: MjxReorientTrainConfig) -> None:
 
@@ -84,9 +91,24 @@ def train(config: MjxReorientTrainConfig) -> None:
 
     setup_sb3_logger(model, run_dir)
 
+    eval_env = make_cpu_eval_env(
+        env_id="ShadowHandReorient-v0",
+        seed=config.seed + 10_000,
+        scene_config=config.scene_config,
+        reward_config=config.reward_config,
+        norm_obs=config.norm_obs,
+    )
+
     callbacks = [
         curriculum_callback,
         RewardInfoLoggerCallback(),
+        VecNormSyncEvalCallback(
+            eval_env,
+            best_model_save_path=str(run_dir / "best"),
+            eval_freq=compute_eval_freq(config.total_timesteps, config.num_envs),
+            n_eval_episodes=10,
+            deterministic=True,
+        ),
         CheckpointCallback(
             save_freq=max(500_000 // config.num_envs, 1),
             save_path=str(run_dir / "checkpoints"),
@@ -111,11 +133,12 @@ def train(config: MjxReorientTrainConfig) -> None:
     print(f"Saved to {run_dir}")
     wandb.finish()
     vec_env.close()
+    eval_env.close()
 
 def parse_args() -> MjxReorientTrainConfig:
     parser = argparse.ArgumentParser(description="Train Shadow Hand reorientation (MJX + SBX PPO)")
     parser.add_argument("--num-envs", type=int, default=2048)
-    parser.add_argument("--total-timesteps", type=int, default=400_000_000)
+    parser.add_argument("--total-timesteps", type=int, default=500_000_000)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--batch-size", type=int, default=4096)
     parser.add_argument("--n-steps-per-env", type=int, default=128)
@@ -124,8 +147,8 @@ def parse_args() -> MjxReorientTrainConfig:
         "--curriculum-reference-timesteps",
         type=int,
         default=None,
-        help="Reference total for curriculum scaling. Default keeps config value (400M). "
-        "Set to 20_000_000 with a 2M sanity to pin stage 0 (30°) for the full run.",
+        help="Reference total for curriculum scaling. Default keeps config value (500M). "
+        "Set to a small value like 30_000_000 with a 3M sanity to pin stage 0 (30°) for the full run.",
     )
     args = parser.parse_args()
 
