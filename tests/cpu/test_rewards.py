@@ -109,7 +109,7 @@ class TestGraspReward:
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
-        assert_allclose(info5["reward/grasping"], 1.0, atol=1e-3)
+        assert_allclose(info5["reward/grasping"], 1.5, atol=1e-3)
         assert_allclose(info0["reward/grasping"], 0.0)
 
     def test_lifting_scales_with_height(self):
@@ -120,8 +120,8 @@ class TestGraspReward:
             _fingertips_at(obj_at_table),
             obj_at_table,
             ZERO3,
-            3,
-            {0, 1, 2},
+            4,
+            {0, 1, 2, 3},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -129,8 +129,8 @@ class TestGraspReward:
             _fingertips_at(obj_lifted),
             obj_lifted,
             ZERO3,
-            3,
-            {0, 1, 2},
+            4,
+            {0, 1, 2, 3},
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
@@ -470,7 +470,7 @@ class TestPegReward:
             )
         )
         _, info0 = calc.compute(**self._default_kwargs(num_fingers_in_contact=0))
-        assert_allclose(info5["reward/grasp"], 1.0, atol=1e-3)
+        assert_allclose(info5["reward/grasp"], 1.5, atol=1e-3)
         assert_allclose(info0["reward/grasp"], 0.0)
 
     def test_opposition_zero_without_thumb_or_others(self):
@@ -519,12 +519,12 @@ class TestPegReward:
                 contact_finger_indices={0, 1},
             )
         )
-        assert_allclose(info_two["reward/lift"], 0.3 + 0.7 * (2.0 / 3.0), rtol=1e-6)
+        assert_allclose(info_two["reward/lift"], 2.0 / 3.0, rtol=1e-6)
 
-    def test_lift_floor_with_no_contact(self):
+    def test_lift_zero_with_no_contact(self):
         calc = self.make_calc()
         _, info = calc.compute(**self._default_kwargs(peg_height=0.5, num_fingers_in_contact=0))
-        assert_allclose(info["reward/lift"], 1.0 * 0.3, rtol=1e-6)
+        assert_allclose(info["reward/lift"], 0.0, rtol=1e-6)
 
     def test_insertion_depth_reward(self):
         calc = self.make_calc()

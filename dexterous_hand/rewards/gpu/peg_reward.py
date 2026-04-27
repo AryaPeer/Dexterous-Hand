@@ -88,12 +88,12 @@ def peg_reward(
     )
 
     contact_scale = jnp.minimum(n_contacts / 3.0, 1.0)
-    grasp = contact_scale * (0.3 + 0.7 * opposition)
+    tripod_bonus = 0.5 * (thumb_contact & (others_count >= 2)).astype(jnp.float32)
+    grasp = contact_scale * (0.3 + 0.7 * opposition) + tripod_bonus
 
 
     lift_height = jnp.maximum(peg_height - state.initial_peg_height, 0.0)
-    contact_scale_lift = 0.3 + 0.7 * contact_scale
-    lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale_lift
+    lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
 
     was_lifted_next = state.was_lifted | (lift_height >= lift_target)
 

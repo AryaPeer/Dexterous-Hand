@@ -81,12 +81,12 @@ class GraspRewardCalculator:
             opposition = 0.0
         info["reward/grasp_quality"] = opposition
 
-        contact_scale = min(n_contacts / 3.0, 1.0)
-        grasping = contact_scale * (0.3 + 0.7 * opposition)
+        contact_scale = min(n_contacts / 4.0, 1.0)
+        tripod_bonus = 0.5 if (thumb_contact and len(others) >= 2) else 0.0
+        grasping = contact_scale * (0.3 + 0.7 * opposition) + tripod_bonus
         info["reward/grasping"] = grasping
 
-        contact_scale_lift = 0.3 + 0.7 * contact_scale
-        lifting = float(min(lift_height / self.lift_target, 1.5)) * contact_scale_lift
+        lifting = float(min(lift_height / self.lift_target, 1.5)) * contact_scale
         info["reward/lifting"] = lifting
 
         obj_speed = float(np.linalg.norm(object_linear_velocity))
@@ -105,7 +105,7 @@ class GraspRewardCalculator:
             self._was_lifted = False
         info["reward/drop"] = drop
 
-        at_target = lift_height >= self.lift_target and n_contacts >= 3 and obj_speed < 0.2
+        at_target = lift_height >= self.lift_target and n_contacts >= 4 and obj_speed < 0.2
         if at_target:
             self._success_hold_counter += 1
         else:

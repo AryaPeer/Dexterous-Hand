@@ -319,11 +319,11 @@ class MjxPegTrainConfig:
     curriculum_reference_timesteps: int = 60_000_000
     curriculum_stages: list[tuple[int, float, float]] = field(
         default_factory=lambda: [
-            (0, 0.004, 1.0),
-            (8_000_000, 0.004, 0.7),
+            (0, 0.004, 0.0),
+            (8_000_000, 0.004, 0.3),
             (16_000_000, 0.003, 0.5),
-            (24_000_000, 0.002, 0.3),
-            (32_000_000, 0.001, 0.2),
+            (24_000_000, 0.002, 0.7),
+            (32_000_000, 0.001, 0.8),
         ]
     )
 

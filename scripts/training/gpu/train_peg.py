@@ -100,7 +100,7 @@ def train(config: MjxPegTrainConfig) -> None:
             eval_env,
             best_model_save_path=str(run_dir / "best"),
             eval_freq=compute_eval_freq(config.total_timesteps, config.num_envs),
-            n_eval_episodes=10,
+            n_eval_episodes=5,
             deterministic=True,
         ),
         CheckpointCallback(

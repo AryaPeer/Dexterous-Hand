@@ -93,14 +93,12 @@ class PegRewardCalculator:
         info["reward/grasp_quality"] = opposition
 
         contact_scale = min(n_contacts / 3.0, 1.0)
-        grasp = contact_scale * (0.3 + 0.7 * opposition)
+        tripod_bonus = 0.5 if (thumb_contact and len(others) >= 2) else 0.0
+        grasp = contact_scale * (0.3 + 0.7 * opposition) + tripod_bonus
         info["reward/grasp"] = grasp
 
-                                                                             
-                                                             
         lift_height = max(peg_height - self._initial_peg_height, 0.0)
-        contact_scale_lift = 0.3 + 0.7 * contact_scale
-        lift = float(min(lift_height / self.lift_target, 1.5)) * contact_scale_lift
+        lift = float(min(lift_height / self.lift_target, 1.5)) * contact_scale
         info["reward/lift"] = lift
 
         was_lifted_prev = self._was_lifted
