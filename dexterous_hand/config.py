@@ -140,7 +140,6 @@ class ReorientTrainConfig:
             (0, math.radians(30)),
             (20_000_000, math.radians(90)),
             (60_000_000, math.radians(180)),
-            (120_000_000, math.pi),
         ]
     )
 
@@ -261,7 +260,7 @@ class MjxGraspTrainConfig:
 class MjxReorientTrainConfig:
 
     num_envs: int = 2048
-    total_timesteps: int = 500_000_000
+    total_timesteps: int = 200_000_000
     learning_rate: float = 3e-4
     batch_size: int = 4096
     n_steps_per_env: int = 128
@@ -282,13 +281,12 @@ class MjxReorientTrainConfig:
     scene_config: ReorientSceneConfig = field(default_factory=ReorientSceneConfig)
     reward_config: ReorientRewardConfig = field(default_factory=ReorientRewardConfig)
     dr: DomainRandomization = field(default_factory=DomainRandomization)
-    curriculum_reference_timesteps: int = 500_000_000
+    curriculum_reference_timesteps: int = 200_000_000
     curriculum_stages: list[tuple[int, float]] = field(
         default_factory=lambda: [
             (0, math.radians(30)),
             (20_000_000, math.radians(90)),
             (60_000_000, math.radians(180)),
-            (120_000_000, math.pi),
         ]
     )
 

@@ -1,3 +1,5 @@
+import math
+
 from dexterous_hand.config import (
     PegRewardConfig,
     PegRewardWeights,
@@ -67,7 +69,8 @@ class TestConfigDefaults:
         assert isinstance(c.scene_config, ReorientSceneConfig)
         assert isinstance(c.reward_config, ReorientRewardConfig)
         assert c.curriculum_reference_timesteps == 400_000_000
-        assert len(c.curriculum_stages) == 4
+        assert len(c.curriculum_stages) == 3
+        assert c.curriculum_stages[-1][1] == math.radians(180)
 
     def test_peg_scene_config(self):
         c = PegSceneConfig()
