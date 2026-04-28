@@ -41,10 +41,10 @@ class RewardConfig:
 
     weights: RewardWeights = field(default_factory=RewardWeights)
     reach_tanh_k: float = 5.0
-    lift_target: float = 0.1
+    lift_target: float = 0.07
     hold_velocity_threshold: float = 0.05
-    hold_height_smoothness_k: float = 50.0
-    hold_velocity_smoothness_k: float = 100.0
+    hold_height_smoothness_k: float = 20.0
+    hold_velocity_smoothness_k: float = 20.0
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0)
     drop_penalty: float = -20.0
     success_bonus: float = 250.0
@@ -158,6 +158,7 @@ class PegRewardWeights:
     drop: float = 1.0
     action_penalty: float = 1.0
     idle_stage0: float = 1.0
+    insertion_drive: float = 1.0
 
 @dataclass
 class PegRewardConfig:
@@ -169,7 +170,7 @@ class PegRewardConfig:
     force_threshold: float = 15.0
     idle_stage0_penalty: float = -0.3
     lift_target: float = 0.1
-    lateral_gate_k: float = 10.0
+    lateral_gate_k: float = 5.0
     idle_stage_cutoff: int = 3
     idle_grace_steps: int = 3
     success_threshold: float = 0.7
@@ -246,6 +247,7 @@ class MjxGraspTrainConfig:
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
+    activation: str = "elu"
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = False
@@ -271,6 +273,7 @@ class MjxReorientTrainConfig:
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
+    activation: str = "elu"
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = True
@@ -308,6 +311,7 @@ class MjxPegTrainConfig:
     gradient_steps: int = 128
     ent_coef: float | str = "auto"
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
+    activation: str = "elu"
     seed: int = 42
     norm_obs: bool = True
     norm_reward: bool = False

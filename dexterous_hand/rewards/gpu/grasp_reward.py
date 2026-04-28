@@ -87,7 +87,7 @@ def grasp_reward(
         0.0,
     )
 
-    contact_scale = jnp.minimum(n_contacts / 4.0, 1.0)
+    contact_scale = jnp.tanh(n_contacts / 2.0)
     tripod_bonus = 0.5 * (thumb_contact & (others_count >= 2)).astype(jnp.float32)
     grasping = contact_scale * (0.3 + 0.7 * opposition) + tripod_bonus
 
@@ -104,7 +104,10 @@ def grasp_reward(
     drop = jnp.where(just_dropped, drop_penalty_value, 0.0)
     was_lifted = jnp.where(just_dropped, False, was_lifted_next)
 
-    at_target = (lift_height >= lift_target) & (n_contacts >= 4) & (obj_speed < 0.2)
+    lift_factor = jnp.clip(lift_height / lift_target, 0.0, 1.0)
+    contact_factor = jnp.clip(n_contacts / 3.0, 0.0, 1.0)
+    speed_factor = _sigmoid(20.0 * (0.2 - obj_speed))
+    at_target = (lift_factor * contact_factor * speed_factor) >= 0.85
     new_success_hold = jnp.where(
         at_target, state.success_hold_counter + 1, jnp.array(0, dtype=jnp.int32)
     )

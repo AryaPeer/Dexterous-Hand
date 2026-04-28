@@ -183,6 +183,8 @@ class MjxVecEnv(VecEnv):
         bad = jnp.any(jnp.isnan(new_data.qpos), axis=1) | jnp.any(jnp.isnan(obs), axis=1)
         rewards = jnp.where(bad, 0.0, jnp.where(jnp.isnan(rewards), 0.0, rewards))
         obs = jnp.where(bad[:, None], 0.0, jnp.nan_to_num(obs, nan=0.0))
+        if reward_info is not None:
+            reward_info["metrics/nan_rate"] = bad.astype(jnp.float32)
 
         # success → truncation (bootstrap from terminal obs); fall → terminated.
         is_success_jnp = reward_info.get("is_success") if reward_info is not None else None

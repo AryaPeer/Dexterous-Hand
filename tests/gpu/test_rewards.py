@@ -327,17 +327,41 @@ class TestPegJax:
         assert np.isfinite(float(total))
         assert "reward/depth" in info
 
-    def test_insertion_hold_increments_and_fires_bonus(self):
+    def test_insertion_hold_smoothly_grows_complete_bonus(self):
+        # smooth bonus replaces the binary cliff: complete = bonus *
+        # sigmoid(20*(frac-0.7)) * sigmoid(hold/5 - 1). Below threshold
+        # complete is near-zero; once frac > threshold complete grows
+        # monotonically with hold count and asymptotes near
+        # complete_bonus * sigmoid(20*(0.917-0.7)) ≈ 0.987 * complete_bonus.
         cfg = PegRewardConfig()
         kw = self._kw()
-        kw["insertion_depth"] = jnp.asarray(0.055)                          
+        kw["insertion_depth"] = jnp.asarray(0.055)
         state = init_peg_reward_state(0.85)
-        for _ in range(cfg.peg_hold_steps - 1):
+
+        prev_complete = -1.0
+        for _ in range(50):
             _, state, info = peg_reward(state=state, **kw)
-            assert float(info["reward/complete"]) == 0.0
-                                                           
-        _, state, info = peg_reward(state=state, **kw)
-        assert float(info["reward/complete"]) == cfg.complete_bonus
+            value = float(info["reward/complete"])
+            assert value >= prev_complete - 1e-6
+            prev_complete = value
+
+        # insertion_fraction = 0.055 / 0.06 = 0.9166...; excess over 0.7
+        # is ≈ 0.2166. asymptote = bonus * sigmoid(20 * 0.2166).
+        excess = 0.055 / 0.06 - cfg.success_threshold
+        asymptote = cfg.complete_bonus / (1.0 + float(np.exp(-20.0 * excess)))
+        np.testing.assert_allclose(prev_complete, asymptote, rtol=1e-3)
+
+    def test_complete_below_threshold_stays_small(self):
+        # below the success_threshold (0.7), the insertion-fraction sigmoid
+        # collapses the bonus toward zero independent of hold count.
+        cfg = PegRewardConfig()
+        kw = self._kw()
+        kw["insertion_depth"] = jnp.asarray(0.03)  # frac=0.5 < 0.7
+        state = init_peg_reward_state(0.85)
+        for _ in range(20):
+            _, state, info = peg_reward(state=state, **kw)
+        # sigmoid(20*(0.5-0.7)) = sigmoid(-4) ≈ 0.018; bound check
+        assert float(info["reward/complete"]) < 0.05 * cfg.complete_bonus
 
     def test_depth_reward_clamped(self):
         kw = self._kw()

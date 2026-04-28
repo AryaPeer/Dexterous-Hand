@@ -3,6 +3,7 @@ import argparse
 from dataclasses import asdict
 from pathlib import Path
 
+import flax.linen as nn
 from sbx import SAC
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor, VecNormalize
@@ -59,6 +60,8 @@ def train(config: MjxPegTrainConfig) -> None:
         verbose=1,
     )
 
+    activation_fn = {"elu": nn.elu, "relu": nn.relu, "tanh": nn.tanh}[config.activation]
+
     model = SAC(
         "MlpPolicy",
         vec_env,
@@ -73,6 +76,7 @@ def train(config: MjxPegTrainConfig) -> None:
         ent_coef=config.ent_coef,
         policy_kwargs={
             "net_arch": dict(pi=config.net_arch.copy(), qf=config.net_arch.copy()),
+            "activation_fn": activation_fn,
         },
         verbose=1,
         seed=config.seed,

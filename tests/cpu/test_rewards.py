@@ -110,13 +110,15 @@ class TestGraspReward:
             ZERO_ACTIONS,
             ZERO_ACTIONS,
         )
-        assert_allclose(info5["reward/grasping"], 1.5, atol=1e-3)
+        # contact_scale = tanh(5/2) ≈ 0.987, raw_opposition = 1.0,
+        # tripod_bonus = 0.5 → 0.987 * 1.0 + 0.5 ≈ 1.487
+        assert_allclose(info5["reward/grasping"], np.tanh(2.5) + 0.5, atol=1e-3)
         assert_allclose(info0["reward/grasping"], 0.0)
 
     def test_lifting_scales_with_height(self):
         calc = self.make_calc()
-        obj_at_table = np.array([0.0, 0.0, 0.4])                
-        obj_lifted = np.array([0.0, 0.0, 0.5])                       
+        obj_at_table = np.array([0.0, 0.0, 0.4])
+        obj_lifted = np.array([0.0, 0.0, 0.5])
         _, info_low = calc.compute(
             _fingertips_at(obj_at_table),
             obj_at_table,
@@ -136,7 +138,10 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
         assert_allclose(info_low["reward/lifting"], 0.0)
-        assert_allclose(info_high["reward/lifting"], 1.0)
+        # lift_height=0.1, lift_target=0.07 → ratio 0.1/0.07 ≈ 1.428 (under
+        # the 1.5 clamp); contact_scale = tanh(4/2) ≈ 0.964 → ≈ 1.377
+        expected_high = (0.1 / 0.07) * float(np.tanh(2.0))
+        assert_allclose(info_high["reward/lifting"], expected_high, rtol=1e-3)
 
     def test_holding_requires_height_and_stability(self):
                                                                                     
@@ -175,11 +180,13 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
 
-                                                                 
+        # sigmoid k dropped from 50/100 → 20/20: gates are now wider so
+        # partial lift / partial speed produce nonzero reward, but ordering
+        # holds.
         assert info_hold["reward/holding"] > info_fast["reward/holding"] * 50
-        assert info_hold["reward/holding"] > info_low["reward/holding"] * 5
+        assert info_hold["reward/holding"] > info_low["reward/holding"] * 1.5
         assert info_fast["reward/holding"] < 0.01
-        assert info_low["reward/holding"] < 0.2
+        assert info_low["reward/holding"] < 0.5
 
     def test_drop_penalty_triggers(self):
         calc = self.make_calc()
@@ -421,6 +428,7 @@ class TestPegReward:
             "reward/drop",
             "reward/action_penalty",
             "reward/idle_stage0_penalty",
+            "reward/insertion_drive",
             "reward/total",
             "metrics/stage",
             "metrics/num_finger_contacts",
@@ -574,18 +582,20 @@ class TestPegReward:
         assert info_far["reward/depth"] >= 0.0
 
     def test_completion_bonus_after_hold(self):
+        # smooth bonus: 250 * sigmoid(20*(frac-0.7)) * sigmoid(hold/5 - 1).
+        # asymptote at long hold is 250 * sigmoid(20*0.25) ≈ 250 * 0.9933.
         calc = self.make_calc()
         peg_length = PegSceneConfig().peg_half_length * 2.0
         kwargs = self._default_kwargs(
-            insertion_depth=peg_length * 0.95,                             
+            insertion_depth=peg_length * 0.95,
             peg_position=np.array([0.0, 0.0, 0.45]),
             hole_position=np.array([0.0, 0.0, 0.45]),
         )
-        for _ in range(10):
+        for _ in range(50):
             _, info = calc.compute(**kwargs)
-                                                                         
-                                                              
-        assert_allclose(info["reward/complete"], 250.0)
+
+        asymptote = 250.0 * 1.0 / (1.0 + float(np.exp(-20.0 * 0.25)))
+        assert_allclose(info["reward/complete"], asymptote, rtol=1e-3)
 
     def test_force_penalty_above_threshold(self):
         calc = self.make_calc()

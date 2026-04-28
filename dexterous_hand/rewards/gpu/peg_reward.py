@@ -107,18 +107,24 @@ def peg_reward(
     align_weight = _sigmoid((peg_clearance - 0.02) * 150.0)
     align = axis_align * lateral_factor_align * align_weight * contact_scale
 
-                                                                                  
+    insertion_drive = align_weight * jnp.maximum(-peg_linvel[2], 0.0) * 5.0
+
+
     lateral_factor_depth = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
     insertion_fraction = jnp.clip(insertion_depth / peg_length, 0.0, 1.0)
     depth_reward = depth_reward_scale * insertion_fraction * lateral_factor_depth
 
-                                            
+
     new_hold = jnp.where(
         insertion_fraction > success_threshold,
         state.insertion_hold_steps + 1,
         jnp.array(0, dtype=jnp.int32),
     )
-    complete = jnp.where(new_hold >= peg_hold_steps, complete_bonus, 0.0)
+    complete = (
+        complete_bonus
+        * _sigmoid(20.0 * (insertion_fraction - success_threshold))
+        * _sigmoid(new_hold.astype(jnp.float32) / 5.0 - 1.0)
+    )
 
 
     force_excess = jnp.maximum(0.0, contact_force_magnitude - force_threshold)
@@ -152,6 +158,7 @@ def peg_reward(
         + weights.force * force_penalty
         + weights.drop * drop
         + weights.action_penalty * action_penalty
+        + weights.insertion_drive * insertion_drive
         + idle_penalty
     )
 
@@ -174,6 +181,7 @@ def peg_reward(
         "reward/drop": drop,
         "reward/action_penalty": action_penalty,
         "reward/idle_stage0_penalty": idle_penalty,
+        "reward/insertion_drive": insertion_drive,
         "reward/total": total,
         "metrics/stage": stage.astype(jnp.float32),
         "metrics/num_finger_contacts": n_contacts,

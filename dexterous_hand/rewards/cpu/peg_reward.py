@@ -113,23 +113,23 @@ class PegRewardCalculator:
         align = axis_align * lateral_factor_align * align_weight * contact_scale
         info["reward/align"] = align
 
-                                                                                   
-                                                                                      
+        insertion_drive = align_weight * max(float(-peg_linvel[2]), 0.0) * 5.0
+        info["reward/insertion_drive"] = insertion_drive
+
         lateral_factor_depth = 1.0 - float(np.tanh(self.lateral_gate_k * lateral_dist))
         insertion_fraction = float(np.clip(insertion_depth / self.peg_length, 0.0, 1.0))
         depth_reward = self.depth_reward_scale * insertion_fraction * lateral_factor_depth
         info["reward/depth"] = depth_reward
 
-                                                                                   
-                                                                                         
         if insertion_fraction > self.success_threshold:
             self._insertion_hold_steps += 1
-            complete = (
-                self.complete_bonus if self._insertion_hold_steps >= self.peg_hold_steps else 0.0
-            )
         else:
             self._insertion_hold_steps = 0
-            complete = 0.0
+        complete = (
+            self.complete_bonus
+            * _sigmoid(20.0 * (insertion_fraction - self.success_threshold))
+            * _sigmoid(self._insertion_hold_steps / 5.0 - 1.0)
+        )
         info["reward/complete"] = complete
 
         force_excess = max(0.0, contact_force_magnitude - self.force_threshold)
@@ -168,6 +168,7 @@ class PegRewardCalculator:
             + self.weights.force * force_penalty
             + self.weights.drop * drop
             + self.weights.action_penalty * action_penalty
+            + self.weights.insertion_drive * insertion_drive
             + idle_penalty
         )
 

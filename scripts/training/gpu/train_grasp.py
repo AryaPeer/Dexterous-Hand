@@ -3,6 +3,7 @@ import argparse
 from dataclasses import asdict
 from pathlib import Path
 
+import flax.linen as nn
 from sbx import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor, VecNormalize
@@ -51,6 +52,8 @@ def train(config: MjxGraspTrainConfig) -> None:
             clip_obs=10.0,
         )
 
+    activation_fn = {"elu": nn.elu, "relu": nn.relu, "tanh": nn.tanh}[config.activation]
+
     model = PPO(
         "MlpPolicy",
         vec_env,
@@ -66,6 +69,7 @@ def train(config: MjxGraspTrainConfig) -> None:
         max_grad_norm=config.max_grad_norm,
         policy_kwargs={
             "net_arch": dict(pi=config.net_arch.copy(), vf=config.net_arch.copy()),
+            "activation_fn": activation_fn,
         },
         verbose=1,
         seed=config.seed,
