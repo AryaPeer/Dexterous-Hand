@@ -28,12 +28,14 @@ class GraspRewardCalculator:
         self._initial_height_above_table = 0.0
         self._idle_steps = 0
         self._success_hold_counter = 0
+        self._was_success_prev = False
 
     def reset(self, initial_object_height: float | None = None) -> None:
 
         self._was_lifted = False
         self._idle_steps = 0
         self._success_hold_counter = 0
+        self._was_success_prev = False
         if initial_object_height is None:
             self._initial_height_above_table = 0.0
         else:
@@ -111,8 +113,10 @@ class GraspRewardCalculator:
         else:
             self._success_hold_counter = 0
         is_success = self._success_hold_counter >= self.success_hold_steps
-        success = self.success_bonus if is_success else 0.0
+        success = self.success_bonus if (is_success and not self._was_success_prev) else 0.0
+        self._was_success_prev = is_success
         info["reward/success"] = success
+        info["is_success"] = float(is_success)
 
         idle_active = n_contacts == 0
         if idle_active:

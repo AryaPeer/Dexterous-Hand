@@ -145,21 +145,25 @@ class ShadowHandGraspEnv(gym.Env):
             previous_actions=self._previous_actions,
         )
 
-                            
+
         self._previous_actions = action.astype(np.float64).copy()
         terminated = False
 
-        if obj_pos[2] < self.scene_config.table_height - 0.05:            
+        if obj_pos[2] < self.scene_config.table_height - 0.05:
             terminated = True
 
-        if np.linalg.norm(obj_pos) > 1.5:                   
+        if np.linalg.norm(obj_pos) > 1.5:
             terminated = True
+
+        is_success = bool(reward_info.get("is_success", 0.0))
+        truncated = is_success and not terminated
 
         obs = self._get_obs()
         info: dict[str, Any] = {**reward_info}
         info["reward/total"] = float(reward)
+        info["is_success"] = is_success
 
-        return obs, float(reward), terminated, False, info
+        return obs, float(reward), terminated, truncated, info
 
     def _get_obs(self) -> np.ndarray:
 

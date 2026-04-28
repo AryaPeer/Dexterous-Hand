@@ -52,6 +52,7 @@ class TestGraspReward:
             "metrics/object_speed",
             "metrics/mean_fingertip_dist",
             "metrics/success_hold_steps",
+            "is_success",
         }
         assert expected_keys == set(info.keys())
 

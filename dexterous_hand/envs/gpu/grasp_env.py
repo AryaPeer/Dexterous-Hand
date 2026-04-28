@@ -192,10 +192,11 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
             idle_grace_steps=self.reward_config.idle_grace_steps,
         )
 
-                     
+
         fell_off = obj_pos[2] < self.scene_config.table_height - 0.05
         launched = jnp.linalg.norm(obj_pos) > 1.5
-        done = fell_off | launched
+        is_success = info["is_success"].astype(bool)
+        done = fell_off | launched | is_success
 
         new_env_state = GraspEnvState(
             reward_state=new_reward_state,

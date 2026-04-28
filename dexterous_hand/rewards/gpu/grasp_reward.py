@@ -15,6 +15,7 @@ class GraspRewardState(NamedTuple):
     initial_height_above_table: jnp.ndarray
     idle_steps: jnp.ndarray
     success_hold_counter: jnp.ndarray
+    was_success_prev: jnp.ndarray
 
 def init_grasp_reward_state(
     initial_object_height: float,
@@ -28,6 +29,7 @@ def init_grasp_reward_state(
         ),
         idle_steps=jnp.array(0, dtype=jnp.int32),
         success_hold_counter=jnp.array(0, dtype=jnp.int32),
+        was_success_prev=jnp.array(False),
     )
 
 def grasp_reward(
@@ -107,7 +109,7 @@ def grasp_reward(
         at_target, state.success_hold_counter + 1, jnp.array(0, dtype=jnp.int32)
     )
     is_success = new_success_hold >= success_hold_steps
-    success = jnp.where(is_success, success_bonus_value, 0.0)
+    success = jnp.where(is_success & ~state.was_success_prev, success_bonus_value, 0.0)
 
     idle_active = n_contacts == 0
     new_idle_steps = jnp.where(
@@ -135,6 +137,7 @@ def grasp_reward(
         initial_height_above_table=state.initial_height_above_table,
         idle_steps=new_idle_steps,
         success_hold_counter=new_success_hold,
+        was_success_prev=is_success,
     )
 
     info = {
@@ -153,6 +156,7 @@ def grasp_reward(
         "metrics/object_speed": obj_speed,
         "metrics/mean_fingertip_dist": jnp.mean(dists),
         "metrics/success_hold_steps": new_success_hold.astype(jnp.float32),
+        "is_success": is_success.astype(jnp.float32),
     }
 
     return total, new_state, info

@@ -239,7 +239,7 @@ class MjxGraspTrainConfig:
     batch_size: int = 4096
     n_steps_per_env: int = 128
     n_epochs: int = 10
-    gamma: float = 0.99
+    gamma: float = 0.995
     gae_lambda: float = 0.95
     clip_range: float = 0.2
     ent_coef: float = 0.01
@@ -248,7 +248,7 @@ class MjxGraspTrainConfig:
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     seed: int = 42
     norm_obs: bool = True
-    norm_reward: bool = True
+    norm_reward: bool = False
     obs_noise_std: float = 0.005
     max_episode_steps: int = 200
     scene_config: SceneConfig = field(default_factory=SceneConfig)
@@ -303,14 +303,14 @@ class MjxPegTrainConfig:
     buffer_size: int = 1_000_000
     learning_starts: int = 50_000
     tau: float = 0.005
-    gamma: float = 0.99
+    gamma: float = 0.997
     train_freq: int = 1
-    gradient_steps: int = 8
+    gradient_steps: int = 128
     ent_coef: float | str = "auto"
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     seed: int = 42
     norm_obs: bool = True
-    norm_reward: bool = True
+    norm_reward: bool = False
     obs_noise_std: float = 0.005
     max_episode_steps: int = 500
     scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
@@ -319,11 +319,11 @@ class MjxPegTrainConfig:
     curriculum_reference_timesteps: int = 60_000_000
     curriculum_stages: list[tuple[int, float, float]] = field(
         default_factory=lambda: [
-            (0, 0.004, 0.0),
-            (8_000_000, 0.004, 0.3),
+            (0, 0.004, 1.0),
+            (8_000_000, 0.004, 0.7),
             (16_000_000, 0.003, 0.5),
-            (24_000_000, 0.002, 0.7),
-            (32_000_000, 0.001, 0.8),
+            (24_000_000, 0.002, 0.3),
+            (32_000_000, 0.001, 0.2),
         ]
     )
 
