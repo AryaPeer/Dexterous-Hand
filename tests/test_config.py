@@ -28,7 +28,7 @@ class TestConfigDefaults:
         w = RewardWeights()
         assert w.reaching == 1.0
         assert w.grasping == 1.0
-        assert w.lifting == 8.0
+        assert w.lifting == 12.0
         assert w.holding == 10.0
         assert w.opposition == 1.0
 
@@ -36,7 +36,7 @@ class TestConfigDefaults:
         c = RewardConfig()
         assert isinstance(c.weights, RewardWeights)
         assert c.lift_target == 0.07
-        assert c.hold_height_smoothness_k == 20.0
+        assert c.hold_height_smoothness_k == 50.0
         assert c.hold_velocity_smoothness_k == 20.0
         assert c.no_contact_idle_penalty == -0.08
 
@@ -92,7 +92,7 @@ class TestConfigDefaults:
         assert c.force_threshold == 15.0
         assert c.idle_stage0_penalty == -0.3
         assert c.weights.opposition == 1.0
-        assert c.weights.insertion_drive == 1.0
+        assert c.weights.insertion_drive == 3.0
         assert c.lateral_gate_k == 5.0
         assert c.peg_hold_steps == 10
         assert c.success_threshold == 0.7

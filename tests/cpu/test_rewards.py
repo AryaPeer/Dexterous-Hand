@@ -180,9 +180,6 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
 
-        # sigmoid k dropped from 50/100 → 20/20: gates are now wider so
-        # partial lift / partial speed produce nonzero reward, but ordering
-        # holds.
         assert info_hold["reward/holding"] > info_fast["reward/holding"] * 50
         assert info_hold["reward/holding"] > info_low["reward/holding"] * 1.5
         assert info_fast["reward/holding"] < 0.01

@@ -28,7 +28,7 @@ class RewardWeights:
 
     reaching: float = 1.0
     grasping: float = 1.0
-    lifting: float = 8.0
+    lifting: float = 12.0
     holding: float = 10.0
     drop: float = 1.0
     action_penalty: float = 1.0
@@ -43,7 +43,7 @@ class RewardConfig:
     reach_tanh_k: float = 5.0
     lift_target: float = 0.07
     hold_velocity_threshold: float = 0.05
-    hold_height_smoothness_k: float = 20.0
+    hold_height_smoothness_k: float = 50.0
     hold_velocity_smoothness_k: float = 20.0
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0)
     drop_penalty: float = -20.0
@@ -157,7 +157,7 @@ class PegRewardWeights:
     drop: float = 1.0
     action_penalty: float = 1.0
     idle_stage0: float = 1.0
-    insertion_drive: float = 1.0
+    insertion_drive: float = 3.0
 
 @dataclass
 class PegRewardConfig:
