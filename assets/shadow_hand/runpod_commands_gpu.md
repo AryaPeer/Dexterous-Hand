@@ -4,13 +4,18 @@ Use this guide for the MJX-accelerated training path (PPO/SAC on JAX via SBX). F
 
 Pick a pod with CUDA 12.4 or newer and at least 24 GB VRAM (RTX 6000 Ada, RTX 4090, L40S, H100).
 
-The Shadow Hand model has many mesh collision geoms plus the table, object, hole, and walls, so MJX constraint and contact tensors are heavy under vmap. Recommended envs per GPU:
+The Shadow Hand model has many mesh collision geoms plus the table, object, hole, and walls, so MJX constraint and contact tensors are heavy under vmap. Recommended envs per GPU (validated empirically):
 
-| GPU VRAM                        | num-envs | Notes                                 |
-|---------------------------------|----------|---------------------------------------|
-| 80 GB (H100)                    | 2048     | default                               |
-| 40–48 GB (A100, L40S, 6000 Ada) | 1024     | comfortable                           |
-| 24 GB (4090)                    | 512      | if compilation OOMs, drop to 256      |
+| GPU VRAM                        | grasp/peg num-envs | reorient num-envs | Notes                              |
+|---------------------------------|--------------------|-------------------|------------------------------------|
+| 80 GB (H100/H200)               | 2048               | 4096              | default                            |
+| 40–48 GB (A100, L40S, 6000 Ada) | 1024               | 1024              | comfortable                        |
+| 32 GB (RTX 5090)                | 768                | 768               | reorient 2048 OOMs (~50 GB I/O)    |
+| 24 GB (4090)                    | 512                | 512               | sanity uses 256                    |
+
+Reorient I/O args grow ~24 MB/env at JIT trace time, so anything below
+~30 GB free can't fit 1024 envs. The 5090's 32 GB sits in the awkward
+middle; 768 is the safe operating point.
 
 If you see XLA scheduler warnings like "byte size of input/output arguments exceeds the base limit" followed by long hangs or OOM at JIT time, halve num-envs and retry. The warnings themselves are cosmetic; hangs and OOMs are not.
 
@@ -61,10 +66,14 @@ Verify JAX sees the GPU before training:
     cd ~/dexterous_hand
     export CUDA_VISIBLE_DEVICES=0
     export JAX_PLATFORMS=cuda
-    export XLA_PYTHON_CLIENT_PREALLOCATE=false
+    export XLA_PYTHON_CLIENT_PREALLOCATE=true
+    export XLA_PYTHON_CLIENT_MEM_FRACTION=0.7
     export WANDB_MODE=disabled
 
-If you hit OOM early and are confident about env size, you can switch back to XLA_PYTHON_CLIENT_PREALLOCATE=true with XLA_PYTHON_CLIENT_MEM_FRACTION=0.7. Leaving headroom matters for MJX because XLA sometimes needs extra scratch buffers during compilation of the vmapped step.
+`PREALLOCATE=true` + `MEM_FRACTION=0.7` is the configuration that fixed
+the `CUDA_ERROR_ILLEGAL_ADDRESS` from the original sanity bundle on
+reorient — keep both. They also eliminate the long-tail XLA
+fragmentation crashes that hit multi-hour SAC runs.
 
 Do not set OPENBLAS_NUM_THREADS, OMP_NUM_THREADS, or MKL_NUM_THREADS here — those only matter for the CPU path.
 
@@ -78,17 +87,39 @@ Should complete in a couple minutes on any modern GPU and print non-zero reward 
 
 ### Grasp + reorient (PPO)
 
-    uv run python main.py train-grasp-mjx --num-envs 1024 --total-timesteps 30000000
-    uv run python main.py train-reorient-mjx --num-envs 1024 --total-timesteps 400000000
+Per-pod env counts after the round-3 5090 OOM finding (2048 envs of
+reorient need ~50 GB of I/O args alone; the 5090's 32 GB doesn't fit):
 
-### Peg + tactile (SAC)
+| GPU       | grasp num-envs | reorient num-envs |
+| --------- | -------------- | ----------------- |
+| H100 80GB | 2048           | 4096              |
+| A100/L40S | 1024           | 1024              |
+| 5090 32GB | 768            | 768               |
+| 4090 24GB | 512            | 512               |
 
-SAC is gradient-heavy; do not blindly push num-envs here. At 1024 envs the default config already does ~32 gradient steps per env step.
+    # full grasp (70 M, current default)
+    uv run python main.py train-grasp-mjx --num-envs 768 --total-timesteps 70000000
 
-    uv run python main.py train-peg-mjx --num-envs 1024 --total-timesteps 40000000
-    uv run python main.py train-tactile-mjx --num-envs 1024 --total-timesteps 40000000
+    # reorient 180° target — see assets/shadow_hand/runpod_reorient_full.md
+    uv run python main.py train-reorient-mjx \
+        --num-envs 768 \
+        --total-timesteps 200000000 \
+        --curriculum-reference-timesteps 200000000
 
-Bump up to num-envs 2048 only on an 80 GB H100 after the sanity check passes.
+### Peg (SAC)
+
+SAC is gradient-heavy and the audit-H1 fix bumped `gradient_steps` to
+128 by default. The UTD ratio at 256 envs is now ~0.5 (was 0.03 before).
+Do not push num-envs above what the GPU comfortably fits — gradient
+cost per env-step is higher than for PPO.
+
+    # full peg (60 M, current default)
+    uv run python main.py train-peg-mjx --num-envs 256 --total-timesteps 60000000
+
+Round-3 confirmed 256 envs on a 4090 produces stable training in 1.5 hr
+per 1 M timesteps. Bumping to 512 on an A100 / 1024 on an H100 is fine
+but watch `train/critic_loss` — high UTD with too many envs can
+oscillate.
 
 ### Watcher + auto-stop
 
