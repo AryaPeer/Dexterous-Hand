@@ -579,14 +579,18 @@ class TestPegReward:
         assert info_far["reward/depth"] >= 0.0
 
     def test_completion_bonus_after_hold(self):
-        # smooth bonus: 250 * sigmoid(20*(frac-0.7)) * sigmoid(hold/5 - 1).
-        # asymptote at long hold is 250 * sigmoid(20*0.25) ≈ 250 * 0.9933.
+        # smooth bonus: 250 * axis_align * lateral_factor_align * contact_scale
+        # * sigmoid(20*(frac-0.7)) * sigmoid(hold/5 - 1). With axis aligned,
+        # peg over hole, and 3 fingers in contact, the three new gates are
+        # all 1.0 — asymptote at long hold is 250 * sigmoid(20*0.25).
         calc = self.make_calc()
         peg_length = PegSceneConfig().peg_half_length * 2.0
         kwargs = self._default_kwargs(
             insertion_depth=peg_length * 0.95,
             peg_position=np.array([0.0, 0.0, 0.45]),
             hole_position=np.array([0.0, 0.0, 0.45]),
+            num_fingers_in_contact=3,
+            contact_finger_indices={0, 1, 2},
         )
         for _ in range(50):
             _, info = calc.compute(**kwargs)

@@ -134,6 +134,9 @@ class PegRewardCalculator:
             self._insertion_hold_steps = 0
         complete = (
             self.complete_bonus
+            * axis_align
+            * lateral_factor_align
+            * contact_scale
             * _sigmoid(20.0 * (insertion_fraction - self.success_threshold))
             * _sigmoid((self._insertion_hold_steps - self.peg_hold_steps) / 2.0)
         )

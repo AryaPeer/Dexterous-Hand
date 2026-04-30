@@ -129,6 +129,9 @@ def peg_reward(
     )
     complete = (
         complete_bonus
+        * axis_align
+        * lateral_factor_align
+        * contact_scale
         * _sigmoid(20.0 * (insertion_fraction - success_threshold))
         * _sigmoid((new_hold.astype(jnp.float32) - peg_hold_steps) / 2.0)
     )
