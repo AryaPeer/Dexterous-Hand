@@ -36,8 +36,8 @@ def build_env(task: str, num_envs: int, seed: int):
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--task", choices=["grasp", "peg", "reorient"], required=True)
-    ap.add_argument("--num-envs", type=int, default=64)
-    ap.add_argument("--steps", type=int, default=10_000)
+    ap.add_argument("--num-envs", type=int, default=32)
+    ap.add_argument("--steps", type=int, default=2_000)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--dominance-threshold", type=float, default=0.80,
                     help="flag any component whose |mean| / |total| exceeds this")
@@ -96,6 +96,8 @@ def main() -> None:
 
     rows: list[tuple[str, float, float, float]] = []
     for k in sorted(reward_counts.keys()):
+        if k == "reward/total":
+            continue
         n = reward_counts[k]
         mean = reward_sums[k] / n
         var = max(reward_sumsq[k] / n - mean ** 2, 0.0)

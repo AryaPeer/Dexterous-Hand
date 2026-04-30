@@ -135,7 +135,7 @@ class PegRewardCalculator:
         complete = (
             self.complete_bonus
             * _sigmoid(20.0 * (insertion_fraction - self.success_threshold))
-            * _sigmoid(self._insertion_hold_steps / 5.0 - 1.0)
+            * _sigmoid((self._insertion_hold_steps - self.peg_hold_steps) / 2.0)
         )
         info["reward/complete"] = complete
 

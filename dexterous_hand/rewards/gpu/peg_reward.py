@@ -130,7 +130,7 @@ def peg_reward(
     complete = (
         complete_bonus
         * _sigmoid(20.0 * (insertion_fraction - success_threshold))
-        * _sigmoid(new_hold.astype(jnp.float32) / 5.0 - 1.0)
+        * _sigmoid((new_hold.astype(jnp.float32) - peg_hold_steps) / 2.0)
     )
 
 
