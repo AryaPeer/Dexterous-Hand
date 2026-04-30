@@ -107,7 +107,14 @@ def peg_reward(
     align_weight = _sigmoid((peg_clearance - 0.02) * 150.0)
     align = axis_align * lateral_factor_align * align_weight * contact_scale
 
-    insertion_drive = align_weight * jnp.maximum(-peg_linvel[2], 0.0) * 5.0
+    insertion_drive = (
+        align_weight
+        * lateral_factor_align
+        * axis_align
+        * contact_scale
+        * jnp.maximum(-peg_linvel[2], 0.0)
+        * 5.0
+    )
 
 
     lateral_factor_depth = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)

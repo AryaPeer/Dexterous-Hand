@@ -138,9 +138,9 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
         assert_allclose(info_low["reward/lifting"], 0.0)
-        # lift_height=0.1, lift_target=0.07 → ratio 0.1/0.07 ≈ 1.428 (under
-        # the 1.5 clamp); contact_scale = tanh(4/2) ≈ 0.964 → ≈ 1.377
-        expected_high = (0.1 / 0.07) * float(np.tanh(2.0))
+        # lift_height=0.1, lift_target=0.04 → ratio 2.5 clamped to 1.5;
+        # contact_scale = tanh(4/2) ≈ 0.964 → 1.5 * 0.964 ≈ 1.446
+        expected_high = 1.5 * float(np.tanh(2.0))
         assert_allclose(info_high["reward/lifting"], expected_high, rtol=1e-3)
 
     def test_holding_requires_height_and_stability(self):
@@ -169,7 +169,7 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
 
-        obj_low = np.array([0.0, 0.0, 0.42])                     
+        obj_low = np.array([0.0, 0.0, 0.405])
         _, info_low = calc.compute(
             _fingertips_at(obj_low),
             obj_low,

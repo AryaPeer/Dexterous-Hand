@@ -41,7 +41,7 @@ class RewardConfig:
 
     weights: RewardWeights = field(default_factory=RewardWeights)
     reach_tanh_k: float = 5.0
-    lift_target: float = 0.07
+    lift_target: float = 0.04
     hold_velocity_threshold: float = 0.05
     hold_height_smoothness_k: float = 50.0
     hold_velocity_smoothness_k: float = 20.0

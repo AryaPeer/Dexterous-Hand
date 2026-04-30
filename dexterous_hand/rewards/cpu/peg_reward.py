@@ -113,7 +113,14 @@ class PegRewardCalculator:
         align = axis_align * lateral_factor_align * align_weight * contact_scale
         info["reward/align"] = align
 
-        insertion_drive = align_weight * max(float(-peg_linvel[2]), 0.0) * 5.0
+        insertion_drive = (
+            align_weight
+            * lateral_factor_align
+            * axis_align
+            * contact_scale
+            * max(float(-peg_linvel[2]), 0.0)
+            * 5.0
+        )
         info["reward/insertion_drive"] = insertion_drive
 
         lateral_factor_depth = 1.0 - float(np.tanh(self.lateral_gate_k * lateral_dist))
