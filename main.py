@@ -13,6 +13,9 @@ Usage: python main.py <command> [options]
   train-grasp-mjx     Train grasping on MJX (SBX PPO)
   train-reorient-mjx  Train reorientation on MJX (SBX PPO)
   train-peg-mjx       Train peg-in-hole on MJX (SBX PPO)
+  resume-grasp-mjx    Resume grasping from a saved checkpoint
+  resume-reorient-mjx Resume reorientation from a saved checkpoint
+  resume-peg-mjx      Resume peg-in-hole from a saved checkpoint
   evaluate-grasp-mjx     Evaluate SBX grasp model
   evaluate-reorient-mjx  Evaluate SBX reorientation model
   evaluate-peg-mjx       Evaluate SBX peg model
@@ -28,6 +31,9 @@ COMMANDS = {
     "train-grasp-mjx": "scripts.training.gpu.train_grasp",
     "train-reorient-mjx": "scripts.training.gpu.train_reorient",
     "train-peg-mjx": "scripts.training.gpu.train_peg",
+    "resume-grasp-mjx": "scripts.training.gpu.resume_grasp",
+    "resume-reorient-mjx": "scripts.training.gpu.resume_reorient",
+    "resume-peg-mjx": "scripts.training.gpu.resume_peg",
     "evaluate-grasp-mjx": "scripts.evaluation.gpu.eval_grasp",
     "evaluate-reorient-mjx": "scripts.evaluation.gpu.eval_reorient",
     "evaluate-peg-mjx": "scripts.evaluation.gpu.eval_peg",
