@@ -138,7 +138,7 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
         assert_allclose(info_low["reward/lifting"], 0.0)
-        # lift_height=0.1, lift_target=0.04 → ratio 2.5 clamped to 1.5;
+        # lift_height=0.1, lift_target=0.012 → ratio 8.33 clamped to 1.5;
         # contact_scale = tanh(4/2) ≈ 0.964 → 1.5 * 0.964 ≈ 1.446
         expected_high = 1.5 * float(np.tanh(2.0))
         assert_allclose(info_high["reward/lifting"], expected_high, rtol=1e-3)
@@ -180,10 +180,13 @@ class TestGraspReward:
             ZERO_ACTIONS,
         )
 
+        # With lift_target=0.012, height_gate centers at lift_target - 0.04 = -0.028,
+        # so it is mostly saturated for any positive lift. Speed differential and
+        # absolute high>low ordering still hold; the magnitude gap narrows.
         assert info_hold["reward/holding"] > info_fast["reward/holding"] * 50
-        assert info_hold["reward/holding"] > info_low["reward/holding"] * 1.5
+        assert info_hold["reward/holding"] > info_low["reward/holding"] * 1.15
         assert info_fast["reward/holding"] < 0.01
-        assert info_low["reward/holding"] < 0.5
+        assert info_low["reward/holding"] < 0.7
 
     def test_drop_penalty_triggers(self):
         calc = self.make_calc()

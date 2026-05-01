@@ -35,7 +35,7 @@ class TestConfigDefaults:
     def test_reward_config(self):
         c = RewardConfig()
         assert isinstance(c.weights, RewardWeights)
-        assert c.lift_target == 0.04
+        assert c.lift_target == 0.012
         assert c.hold_height_smoothness_k == 50.0
         assert c.hold_velocity_smoothness_k == 20.0
         assert c.no_contact_idle_penalty == -0.08

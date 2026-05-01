@@ -41,7 +41,7 @@ class RewardConfig:
 
     weights: RewardWeights = field(default_factory=RewardWeights)
     reach_tanh_k: float = 5.0
-    lift_target: float = 0.04
+    lift_target: float = 0.012
     hold_velocity_threshold: float = 0.05
     hold_height_smoothness_k: float = 50.0
     hold_velocity_smoothness_k: float = 20.0
@@ -307,7 +307,7 @@ class MjxPegTrainConfig:
     gamma: float = 0.997
     train_freq: int = 1
     gradient_steps: int = 128
-    ent_coef: float | str = "auto"
+    ent_coef: float | str = 0.1
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     activation: str = "elu"
     seed: int = 42
