@@ -122,7 +122,7 @@ def train(config: MjxGraspTrainConfig) -> None:
 
 def parse_args() -> MjxGraspTrainConfig:
     parser = argparse.ArgumentParser(description="Train Shadow Hand grasping (MJX + SBX PPO)")
-    parser.add_argument("--num-envs", type=int, default=2048)
+    parser.add_argument("--num-envs", type=int, default=768)
     parser.add_argument("--total-timesteps", type=int, default=70_000_000)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--batch-size", type=int, default=4096)

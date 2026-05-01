@@ -145,8 +145,8 @@ def train(config: MjxPegTrainConfig) -> None:
 
 def parse_args() -> MjxPegTrainConfig:
     parser = argparse.ArgumentParser(description="Train Shadow Hand peg-in-hole (MJX + SBX PPO)")
-    parser.add_argument("--num-envs", type=int, default=2048)
-    parser.add_argument("--total-timesteps", type=int, default=60_000_000)
+    parser.add_argument("--num-envs", type=int, default=768)
+    parser.add_argument("--total-timesteps", type=int, default=100_000_000)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--batch-size", type=int, default=4096)
     parser.add_argument("--n-steps-per-env", type=int, default=128)

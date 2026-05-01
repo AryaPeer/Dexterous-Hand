@@ -233,7 +233,7 @@ class PegTrainConfig:
 @dataclass
 class MjxGraspTrainConfig:
 
-    num_envs: int = 2048
+    num_envs: int = 768
     total_timesteps: int = 70_000_000
     learning_rate: float = 3e-4
     batch_size: int = 4096
@@ -259,7 +259,7 @@ class MjxGraspTrainConfig:
 @dataclass
 class MjxReorientTrainConfig:
 
-    num_envs: int = 2048
+    num_envs: int = 768
     total_timesteps: int = 200_000_000
     learning_rate: float = 3e-4
     batch_size: int = 4096
@@ -297,8 +297,8 @@ def _mjx_peg_reward_config() -> PegRewardConfig:
 @dataclass
 class MjxPegTrainConfig:
 
-    num_envs: int = 512
-    total_timesteps: int = 60_000_000
+    num_envs: int = 768
+    total_timesteps: int = 100_000_000
     learning_rate: float = 3e-4
     batch_size: int = 4096
     n_steps_per_env: int = 128
@@ -319,7 +319,7 @@ class MjxPegTrainConfig:
     scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
     reward_config: PegRewardConfig = field(default_factory=_mjx_peg_reward_config)
     dr: DomainRandomization = field(default_factory=lambda: DomainRandomization(enabled=False))
-    curriculum_reference_timesteps: int = 60_000_000
+    curriculum_reference_timesteps: int = 100_000_000
     curriculum_stages: list[tuple[int, float, float]] = field(
         default_factory=lambda: [
             (0, 0.004, 1.0),
