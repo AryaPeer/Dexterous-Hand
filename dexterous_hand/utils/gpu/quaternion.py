@@ -1,8 +1,9 @@
-
 import jax
 import jax.numpy as jnp
 
+
 def quat_multiply(q1: jnp.ndarray, q2: jnp.ndarray) -> jnp.ndarray:
+    """Hamilton product. Quats are [w, x, y, z] (MuJoCo convention)."""
 
     w1, x1, y1, z1 = q1[0], q1[1], q1[2], q1[3]
     w2, x2, y2, z2 = q2[0], q2[1], q2[2], q2[3]
@@ -15,20 +16,26 @@ def quat_multiply(q1: jnp.ndarray, q2: jnp.ndarray) -> jnp.ndarray:
         ]
     )
 
+
 def quat_conjugate(q: jnp.ndarray) -> jnp.ndarray:
+    """Conjugate (= inverse for unit quats)."""
 
     return jnp.array([q[0], -q[1], -q[2], -q[3]])
 
+
 def quat_angular_distance(q1: jnp.ndarray, q2: jnp.ndarray) -> jnp.ndarray:
+    """Geodesic angle between two orientations [0, pi]. Handles double-cover."""
 
     dot = jnp.clip(jnp.abs(jnp.dot(q1, q2)), 0.0, 1.0)
     return 2.0 * jnp.arccos(dot)
+
 
 def random_quaternion_within_angle(
     key: jax.Array,
     max_angle_rad: float | jax.Array,
     min_angle_rad: float | jax.Array = 0.0,
 ) -> jnp.ndarray:
+    """Random rotation within [min_angle_rad, max_angle_rad]. Axis sampled uniformly on S^2."""
 
     k1, k2, k3 = jax.random.split(key, 3)
     z = jax.random.uniform(k1, minval=-1.0, maxval=1.0)
@@ -50,6 +57,24 @@ def sample_target_quat_rel_to_cube(
     min_angle_rad: float | jax.Array = 0.0,
     n_candidates: int = 8,
 ) -> jnp.ndarray:
+    """Pick a target quat at least `min_angle_rad` away from `cube_quat`.
+
+    Samples `n_candidates` candidates and returns the first one past the threshold,
+    or the farthest if none pass (so vmap-friendly without Python branching).
+
+    @param key: PRNG key
+    @type key: jax.Array
+    @param cube_quat: (4,) current cube orientation
+    @type cube_quat: jnp.ndarray
+    @param max_angle_rad: per-axis sampling cap
+    @type max_angle_rad: float | jax.Array
+    @param min_angle_rad: minimum acceptable distance from cube_quat
+    @type min_angle_rad: float | jax.Array
+    @param n_candidates: rejection sample budget
+    @type n_candidates: int
+    @return: (4,) target quaternion
+    @rtype: jnp.ndarray
+    """
 
     keys = jax.random.split(key, n_candidates)
     sample_one = lambda k: random_quaternion_within_angle(k, max_angle_rad)

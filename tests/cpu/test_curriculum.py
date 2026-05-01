@@ -6,6 +6,7 @@ from dexterous_hand.curriculum.callbacks import (
     scale_stage_starts,
 )
 
+
 def _setup_callback(cb: ReorientCurriculumCallback | AssemblyCurriculumCallback) -> MagicMock:
 
     # BaseCallback.training_env is a @property that resolves to

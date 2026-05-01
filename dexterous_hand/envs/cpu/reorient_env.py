@@ -22,6 +22,7 @@ from dexterous_hand.utils.cpu.quaternion import (
     random_quaternion_within_angle,
 )
 
+
 class ShadowHandReorientEnv(gym.Env):
     metadata = {
         "render_modes": ["human", "rgb_array"],
@@ -34,6 +35,15 @@ class ShadowHandReorientEnv(gym.Env):
         scene_config: ReorientSceneConfig | None = None,
         reward_config: ReorientRewardConfig | None = None,
     ) -> None:
+        """Shadow Hand in-hand reorient env (CPU mujoco).
+
+        @param render_mode: 'human' for viewer, 'rgb_array' for offscreen
+        @type render_mode: str | None
+        @param scene_config: scene physics + cube layout
+        @type scene_config: ReorientSceneConfig | None
+        @param reward_config: reorient reward weights and thresholds
+        @type reward_config: ReorientRewardConfig | None
+        """
 
         super().__init__()
 
@@ -41,7 +51,7 @@ class ShadowHandReorientEnv(gym.Env):
         self.reward_config = reward_config or ReorientRewardConfig()
         self.render_mode = render_mode
 
-                                
+        # build scene and spaces
         self.model, self.data, self.nm = build_reorient_scene(self.scene_config)
 
         n_obs = 109
@@ -52,7 +62,7 @@ class ShadowHandReorientEnv(gym.Env):
             low=-1.0, high=1.0, shape=(self.nm.n_actuators,), dtype=np.float32
         )
 
-                
+        # reward
         mujoco.mj_forward(self.model, self.data)
         init_cube_pos = self.data.xpos[self.nm.cube_body_id].copy()
 
@@ -61,18 +71,18 @@ class ShadowHandReorientEnv(gym.Env):
             initial_cube_pos=init_cube_pos,
         )
 
-                        
+        # state tracking
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._target_quat = np.array([1.0, 0.0, 0.0, 0.0])
-        self._max_target_angle = 0.5236                                    
+        self._max_target_angle = 0.5236  # ~30 deg, scaled by curriculum
         self._targets_reached = 0
         self._init_qpos = self.data.qpos.copy()
         apply_flexion_bias(self._init_qpos, self.model, bias_map=GRIP_BIAS)
         self._palm_z: float = 0.0
         self._grasp_site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site")
 
-                   
+        # rendering
         self._renderer: mujoco.Renderer | None = None
         if render_mode == "human":
             self._viewer: mujoco.viewer.Handle | None = None
@@ -83,6 +93,15 @@ class ShadowHandReorientEnv(gym.Env):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, dict[str, Any]]:
+        """Reset reorient episode with cube placed in-hand and a fresh target.
+
+        @param seed: random seed
+        @type seed: int | None
+        @param options: unused
+        @type options: dict[str, Any] | None
+        @return: (obs (109,), info with targets_reached counter)
+        @rtype: tuple[np.ndarray, dict[str, Any]]
+        """
 
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
@@ -92,7 +111,7 @@ class ShadowHandReorientEnv(gym.Env):
         self.data.qpos[self.nm.hand_qpos_start : self.nm.hand_qpos_end] = hand_qpos + noise
         self.data.qvel[:] = 0.0
 
-                                              
+        # place cube at the grasp site, with a small XYZ jitter
         mujoco.mj_forward(self.model, self.data)
         palm_pos = get_palm_position(self.data, self.nm.palm_body_id)
         self._palm_z = float(palm_pos[2])
@@ -106,7 +125,7 @@ class ShadowHandReorientEnv(gym.Env):
 
         mujoco.mj_forward(self.model, self.data)
 
-                                            
+        # sample a target far enough from the current cube quat
         self._target_quat = self._sample_target_quat(cube_quat=init_quat)
         self._targets_reached = 0
         init_cube_pos = self.data.xpos[self.nm.cube_body_id].copy()
@@ -121,7 +140,6 @@ class ShadowHandReorientEnv(gym.Env):
         return obs, info
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
-
         action = np.clip(action, -1.0, 1.0)
         alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
         if alpha > 0.0:
@@ -135,7 +153,7 @@ class ShadowHandReorientEnv(gym.Env):
 
         mujoco.mj_step(self.model, self.data, nstep=self.scene_config.frame_skip)
 
-                    
+        # reward inputs
         fingertip_pos = get_fingertip_positions(self.data, self.nm.fingertip_site_ids)
 
         cube_pos, cube_quat, cube_linvel, cube_angvel = get_object_state(
@@ -168,7 +186,7 @@ class ShadowHandReorientEnv(gym.Env):
 
         self._previous_actions = action.astype(np.float64).copy()
 
-                                             
+        # advance to a new target on success
         if target_reached:
             self._targets_reached += 1
             self._target_quat = self._sample_target_quat(cube_quat=cube_quat)
@@ -202,11 +220,10 @@ class ShadowHandReorientEnv(gym.Env):
         )
 
     def _get_obs(self) -> np.ndarray:
-
         nm = self.nm
 
-        joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]      
-        joint_vel = self.data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]      
+        joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]
+        joint_vel = self.data.qvel[nm.hand_qvel_start : nm.hand_qvel_end]
 
         cube_pos, cube_quat, cube_linvel, cube_angvel = get_object_state(
             self.data, nm.cube_body_id, nm.cube_qpos_start, nm.cube_qvel_start
@@ -236,11 +253,9 @@ class ShadowHandReorientEnv(gym.Env):
         return obs
 
     def set_curriculum_stage(self, max_angle: float) -> None:
-
         self._max_target_angle = max_angle
 
     def render(self) -> np.ndarray | None:  # type: ignore[override]
-
         if self.render_mode == "rgb_array":
             if self._renderer is None:
                 self._renderer = mujoco.Renderer(self.model, height=480, width=640)
@@ -258,7 +273,6 @@ class ShadowHandReorientEnv(gym.Env):
         return None
 
     def close(self) -> None:
-
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None

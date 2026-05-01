@@ -10,6 +10,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 import dexterous_hand.envs  # noqa: F401
 
+
 def evaluate(
     model_path: str,
     vec_normalize_path: str | None = None,

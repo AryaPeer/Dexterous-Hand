@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any, NamedTuple
@@ -32,14 +31,15 @@ from dexterous_hand.utils.gpu.mjx_helpers import (
     get_palm_position_jax,
 )
 
+
 class GraspEnvState(NamedTuple):
     reward_state: GraspRewardState
     previous_actions: jnp.ndarray
     smoothed_actions: jnp.ndarray
     step_count: jnp.ndarray
 
-class ShadowHandGraspMjxEnv(MjxVecEnv):
 
+class ShadowHandGraspMjxEnv(MjxVecEnv):
     def __init__(
         self,
         num_envs: int = 2048,
@@ -50,6 +50,24 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
         obs_noise_std: float = 0.0,
         dr: DomainRandomization | None = None,
     ) -> None:
+        """Build the batched grasp env.
+
+        @param num_envs: number of parallel envs
+        @type num_envs: int
+        @param seed: PRNG seed
+        @type seed: int
+        @param scene_config: scene physics + layout
+        @type scene_config: SceneConfig | None
+        @param reward_config: reward weights and thresholds
+        @type reward_config: RewardConfig | None
+        @param max_episode_steps: per-env episode cap before truncation
+        @type max_episode_steps: int
+        @param obs_noise_std: gaussian noise std added to obs (0 disables)
+        @type obs_noise_std: float
+        @param dr: domain randomization config; None disables
+        @type dr: DomainRandomization | None
+        """
+
         self.scene_config = scene_config or SceneConfig()
         self.reward_config = reward_config or RewardConfig()
         self._episode_limit = max_episode_steps
@@ -96,14 +114,14 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
         nm = self._nm
         k1, k2, k3 = jax.random.split(key, 3)
 
-                         
+        # hand pose
         qpos = self._init_qpos
 
         hand_qpos = qpos[nm.hand_qpos_start : nm.hand_qpos_end]
         noise = jax.random.uniform(k1, shape=hand_qpos.shape, minval=-0.05, maxval=0.05)
         qpos = qpos.at[nm.hand_qpos_start : nm.hand_qpos_end].set(hand_qpos + noise)
 
-                                                     
+        # object pose at small random XY offset on the table
         obj_x = jax.random.uniform(k2, minval=-0.05, maxval=0.05)
         obj_y = jax.random.uniform(k3, minval=-0.05, maxval=0.05)
         obj_z = self.scene_config.table_height + self._object_half_height + 0.001
@@ -141,21 +159,21 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
         nm = self._nm
         action = jnp.clip(action, -1.0, 1.0)
 
-                          
+        # action smoothing
         alpha = self.scene_config.action_smoothing_alpha
         smoothed = (1.0 - alpha) * env_state.smoothed_actions + alpha * action
 
-                               
+        # remap [-1, 1] -> actuator ctrlrange
         ctrl = self._ctrl_low + (smoothed + 1.0) / 2.0 * (self._ctrl_high - self._ctrl_low)
         mjx_data = mjx_data.replace(ctrl=ctrl)
 
-                      
+        # frame_skip mjx steps
         def _substep(data: Any, _: Any) -> tuple[Any, None]:
             return mjx.step(mjx_model, data), None
 
         mjx_data, _ = jax.lax.scan(_substep, mjx_data, None, length=self.scene_config.frame_skip)
 
-                    
+        # reward inputs
         finger_pos = get_fingertip_positions_jax(mjx_data.site_xpos, self._fingertip_site_ids)
         obj_pos, obj_quat, obj_linvel, obj_angvel = get_object_state_jax(
             mjx_data.qpos,
@@ -168,7 +186,7 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
 
         _, contact_mask = get_finger_touch_from_sensors(mjx_data.sensordata, self._finger_touch_adr)
 
-                
+        # reward
         total, new_reward_state, info = grasp_reward(
             state=env_state.reward_state,
             finger_positions=finger_pos,
@@ -191,7 +209,6 @@ class ShadowHandGraspMjxEnv(MjxVecEnv):
             fingertip_weights=self.reward_config.fingertip_weights,
             idle_grace_steps=self.reward_config.idle_grace_steps,
         )
-
 
         fell_off = obj_pos[2] < self.scene_config.table_height - 0.05
         launched = jnp.linalg.norm(obj_pos) > 1.5

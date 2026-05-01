@@ -15,6 +15,7 @@ from dexterous_hand.config import (
     TrainConfig,
 )
 
+
 class TestConfigDefaults:
     def test_scene_config(self):
         c = SceneConfig()

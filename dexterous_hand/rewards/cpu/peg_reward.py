@@ -1,14 +1,13 @@
-
 import numpy as np
 
 from dexterous_hand.config import PegRewardConfig
 
-def _sigmoid(x: float) -> float:
 
+def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + float(np.exp(-x)))
 
-class PegRewardCalculator:
 
+class PegRewardCalculator:
     def __init__(
         self,
         config: PegRewardConfig,
@@ -16,6 +15,17 @@ class PegRewardCalculator:
         peg_half_length: float,
         peg_radius: float = 0.0,
     ) -> None:
+        """Peg reward calculator.
+
+        @param config: peg reward weights and thresholds
+        @type config: PegRewardConfig
+        @param table_height: table surface height
+        @type table_height: float
+        @param peg_half_length: half-length of the peg cylinder body
+        @type peg_half_length: float
+        @param peg_radius: peg cylinder radius
+        @type peg_radius: float
+        """
 
         self.weights = config.weights
         self.peg_length = peg_half_length * 2.0 + peg_radius * 2.0
@@ -39,6 +49,11 @@ class PegRewardCalculator:
         self._idle_steps = 0
 
     def reset(self, initial_peg_height: float | None = None) -> None:
+        """Reset for a new episode.
+
+        @param initial_peg_height: peg height at episode start; None defaults to table.
+        @type initial_peg_height: float | None
+        """
 
         self._was_lifted = False
         self._insertion_hold_steps = 0
@@ -65,19 +80,50 @@ class PegRewardCalculator:
         actions: np.ndarray,
         previous_actions: np.ndarray,
     ) -> tuple[float, dict[str, float]]:
+        """Total peg-in-hole reward across the four curriculum stages.
+
+        @param stage: current curriculum stage (0=reach, 1=grasp, 2=lift, 3=insert)
+        @type stage: int
+        @param finger_positions: (5, 3) per-finger representative positions
+        @type finger_positions: np.ndarray
+        @param peg_position: (3,) peg center
+        @type peg_position: np.ndarray
+        @param peg_axis: (3,) peg long axis (world frame)
+        @type peg_axis: np.ndarray
+        @param hole_position: (3,) hole center
+        @type hole_position: np.ndarray
+        @param hole_axis: (3,) hole insertion axis (world frame)
+        @type hole_axis: np.ndarray
+        @param insertion_depth: current peg-tip insertion depth (m)
+        @type insertion_depth: float
+        @param contact_force_magnitude: total normal force on hole walls (N)
+        @type contact_force_magnitude: float
+        @param num_fingers_in_contact: fingers touching the peg
+        @type num_fingers_in_contact: int
+        @param contact_finger_indices: set of finger indices in contact
+        @type contact_finger_indices: set[int]
+        @param peg_height: peg z-coordinate (world frame)
+        @type peg_height: float
+        @param peg_linvel: (3,) peg linear velocity
+        @type peg_linvel: np.ndarray
+        @param actions: (22,) current actions
+        @type actions: np.ndarray
+        @param previous_actions: (22,) last step's actions
+        @type previous_actions: np.ndarray
+        @return: (total, info) weighted reward sum and per-component breakdown
+        @rtype: tuple[float, dict[str, float]]
+        """
 
         info: dict[str, float] = {}
         n_contacts = num_fingers_in_contact
 
-                                                                                  
+        # reach: weighted fingertip-to-peg distance
         dists = np.linalg.norm(finger_positions - peg_position, axis=1)
         weighted_dist = float(np.sum(self.fingertip_weights * dists) / self.fingertip_weights.sum())
         reach = 1.0 - float(np.tanh(self.reach_tanh_k * weighted_dist))
         info["reward/reach"] = reach
 
-                                                                                              
-                                                                                             
-                                                                                           
+        # grasp quality: thumb opposing the rest
         thumb_contact = 0 in contact_finger_indices
         others = contact_finger_indices - {0}
         if thumb_contact and len(others) >= 1:
@@ -105,6 +151,7 @@ class PegRewardCalculator:
         if lift_height >= self.lift_target:
             self._was_lifted = True
 
+        # align + insertion drive: gated on the peg actually being above the table
         lateral_dist = float(np.linalg.norm(peg_position[:2] - hole_position[:2]))
         axis_align = abs(float(np.dot(peg_axis, hole_axis)))
         lateral_factor_align = 1.0 - float(np.tanh(self.lateral_gate_k * lateral_dist))

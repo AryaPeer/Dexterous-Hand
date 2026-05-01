@@ -7,8 +7,8 @@ from sbx import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor, VecNormalize
 
-import dexterous_hand.envs  # noqa: F401  - register gym ids for CPU eval env
 from dexterous_hand.config import MjxGraspTrainConfig
+import dexterous_hand.envs  # noqa: F401  - register gym ids for CPU eval env
 from dexterous_hand.envs.gpu.grasp_env import ShadowHandGraspMjxEnv
 from scripts.training._common import (
     RewardInfoLoggerCallback,
@@ -17,6 +17,7 @@ from scripts.training._common import (
     make_cpu_eval_env,
     setup_sb3_logger,
 )
+
 
 def train(args: SimpleNamespace) -> None:
 

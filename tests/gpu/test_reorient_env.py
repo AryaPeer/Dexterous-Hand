@@ -7,6 +7,7 @@ pytest.importorskip("jax")
 
 from dexterous_hand.envs.gpu.reorient_env import ShadowHandReorientMjxEnv  # noqa: E402
 
+
 @pytest.mark.slow
 class TestReorientMjxSmoke:
     def test_reset_and_step(self):

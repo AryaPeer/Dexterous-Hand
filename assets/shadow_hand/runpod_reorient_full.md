@@ -192,10 +192,21 @@ of thumb for 180° convergence. If you reduce `--total-timesteps`,
 
 `final_model.zip` is only written at the end. Mid-run state lives in
 `runs/reorient_mjx_768env_42/checkpoints/` (saved every 500 K vec-steps).
-SBX does not auto-resume; you would need to point a one-off script at
-the latest checkpoint and call `model.learn(total_timesteps=remaining,
-reset_num_timesteps=False)`. Easiest path is to restart from scratch if
-the crash is early; checkpoint recovery is only worth it past ~50 M.
+Use the wired CLI to point at the latest checkpoint:
+
+```
+uv run python main.py resume-reorient-mjx \
+    --model-path /workspace/runs/reorient_mjx_768env_42/checkpoints/<latest>.zip \
+    --vec-normalize-path /workspace/runs/reorient_mjx_768env_42/vec_normalize.pkl \
+    --additional-timesteps <remaining> \
+    --num-envs 768 \
+    --seed 42
+```
+
+`vec_normalize.pkl` is only saved at end-of-run, so for crash recovery
+you may need to reuse the one from a prior completed run on the same
+config or restart from scratch. Checkpoint recovery is only worth the
+hassle past ~50 M.
 
 ## 11. Extending past 180°
 
@@ -216,19 +227,23 @@ you later decide you want full SO(3):
    )
    ```
 
-2. **Resume from the saved checkpoint** with a one-off script:
+2. **Resume from the saved checkpoint** via the wired CLI:
 
    ```
-   from sbx import PPO
-   model = PPO.load("runs/reorient_mjx_768env_42/final_model.zip", env=...)
-   model.learn(total_timesteps=300_000_000, reset_num_timesteps=False)
+   uv run python main.py resume-reorient-mjx \
+       --model-path /workspace/runs/reorient_mjx_768env_42/final_model.zip \
+       --vec-normalize-path /workspace/runs/reorient_mjx_768env_42/vec_normalize.pkl \
+       --additional-timesteps 300000000 \
+       --num-envs 768 \
+       --seed 42
    ```
 
-   Use `reset_num_timesteps=False` so the curriculum sees cumulative
-   steps. With `total_timesteps=300_000_000` on top of the 200 M
-   already trained, the SO(3) stage (base threshold 120 M) enters at
-   200 M cumulative — i.e. immediately on resume — and gets the full
-   300 M of fresh budget.
+   The resume script always uses `reset_num_timesteps=False` and reloads
+   the existing `vec_normalize.pkl` so the curriculum sees cumulative
+   steps and the obs running stats are preserved. With 300 M additional
+   on top of the 200 M already trained, the SO(3) stage (base threshold
+   120 M) enters at 200 M cumulative — i.e. immediately on resume — and
+   gets the full 300 M of fresh budget.
 
 3. Or relaunch from scratch with the 4-stage curriculum and
    `--total-timesteps 500000000 --curriculum-reference-timesteps 500000000`.

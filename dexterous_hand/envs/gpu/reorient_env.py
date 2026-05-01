@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any, NamedTuple
@@ -35,6 +34,7 @@ from dexterous_hand.utils.gpu.quaternion import (
     sample_target_quat_rel_to_cube,
 )
 
+
 class ReorientEnvState(NamedTuple):
     reward_state: ReorientRewardState
     previous_actions: jnp.ndarray
@@ -46,8 +46,8 @@ class ReorientEnvState(NamedTuple):
     step_count: jnp.ndarray
     key: jax.Array
 
-class ShadowHandReorientMjxEnv(MjxVecEnv):
 
+class ShadowHandReorientMjxEnv(MjxVecEnv):
     def __init__(
         self,
         num_envs: int = 2048,
@@ -58,6 +58,24 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         obs_noise_std: float = 0.0,
         dr: DomainRandomization | None = None,
     ) -> None:
+        """Build the batched reorient env.
+
+        @param num_envs: number of parallel envs
+        @type num_envs: int
+        @param seed: PRNG seed
+        @type seed: int
+        @param scene_config: scene physics + cube layout
+        @type scene_config: ReorientSceneConfig | None
+        @param reward_config: reorient reward config
+        @type reward_config: ReorientRewardConfig | None
+        @param max_episode_steps: per-env episode horizon
+        @type max_episode_steps: int
+        @param obs_noise_std: gaussian obs noise std
+        @type obs_noise_std: float
+        @param dr: domain randomization config
+        @type dr: DomainRandomization | None
+        """
+
         self.scene_config = scene_config or ReorientSceneConfig()
         self.reward_config = reward_config or ReorientRewardConfig()
         self._episode_limit = max_episode_steps
@@ -96,10 +114,6 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         return self._episode_limit
 
     def set_curriculum_stage(self, max_angle: float) -> None:
-                                                                                 
-                                                                              
-                                                                                 
-                                               
         self._max_target_angle = jnp.array(float(max_angle))
         self._batched_reset = jax.jit(jax.vmap(self._reset_single, in_axes=(None, 0, 0)))
 
@@ -188,7 +202,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
 
         mjx_data, _ = jax.lax.scan(_substep, mjx_data, None, length=self.scene_config.frame_skip)
 
-                    
+        # reward inputs
         fingertip_pos = get_fingertip_positions_jax(mjx_data.site_xpos, self._fingertip_site_ids)
         cube_pos, cube_quat, cube_linvel, cube_angvel = get_object_state_jax(
             mjx_data.qpos,
@@ -246,7 +260,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             env_state.targets_reached + 1,
             env_state.targets_reached,
         )
-                                       
+        # reset reward state when a new target is sampled
         new_reward_state = jax.lax.cond(
             target_reached,
             lambda: init_reorient_reward_state(cube_pos),

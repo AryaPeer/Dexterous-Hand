@@ -7,6 +7,7 @@ pytest.importorskip("jax")
 
 from dexterous_hand.envs.gpu.grasp_env import ShadowHandGraspMjxEnv  # noqa: E402
 
+
 @pytest.mark.slow
 class TestGraspMjxSmoke:
     def test_reset_and_step(self):

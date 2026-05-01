@@ -4,6 +4,7 @@ import pytest
 
 import dexterous_hand.envs  # noqa: F401
 
+
 @pytest.mark.slow
 class TestGraspEnvSpaces:
     def test_observation_shape(self, grasp_env):

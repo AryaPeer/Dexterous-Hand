@@ -1,4 +1,3 @@
-
 from typing import NamedTuple
 
 import jax.numpy as jnp
@@ -6,21 +5,22 @@ import jax.numpy as jnp
 from dexterous_hand.config import ReorientRewardWeights
 from dexterous_hand.utils.gpu.quaternion import quat_angular_distance
 
-class ReorientRewardState(NamedTuple):
 
+class ReorientRewardState(NamedTuple):
     success_steps: jnp.ndarray
     prev_ang_dist: jnp.ndarray
     initial_cube_pos: jnp.ndarray
     has_prev: jnp.ndarray
 
-def init_reorient_reward_state(initial_cube_pos: jnp.ndarray) -> ReorientRewardState:
 
+def init_reorient_reward_state(initial_cube_pos: jnp.ndarray) -> ReorientRewardState:
     return ReorientRewardState(
         success_steps=jnp.array(0, dtype=jnp.int32),
         prev_ang_dist=jnp.array(0.0),
         initial_cube_pos=initial_cube_pos,
         has_prev=jnp.array(False),
     )
+
 
 def reorient_reward(
     state: ReorientRewardState,
@@ -44,6 +44,33 @@ def reorient_reward(
     tracking_k: float = 2.0,
     orientation_contact_alpha: float = 3.0 / 7.0,
 ) -> tuple[jnp.ndarray, ReorientRewardState, dict[str, jnp.ndarray], jnp.ndarray]:
+    """Total reorient reward + new state + info + target-reached flag.
+
+    @param state: previous-step reward state
+    @type state: ReorientRewardState
+    @param cube_quat: (4,) current cube orientation [w, x, y, z]
+    @type cube_quat: jnp.ndarray
+    @param target_quat: (4,) target orientation
+    @type target_quat: jnp.ndarray
+    @param cube_pos: (3,) cube position (unused)
+    @type cube_pos: jnp.ndarray
+    @param cube_linvel: (3,) cube linear velocity (unused)
+    @type cube_linvel: jnp.ndarray
+    @param finger_positions: (5, 3) finger world positions (unused)
+    @type finger_positions: jnp.ndarray
+    @param finger_contact_mask: (5,) bool mask of fingers touching the cube
+    @type finger_contact_mask: jnp.ndarray
+    @param actions: (n_act,) clipped action vector this step
+    @type actions: jnp.ndarray
+    @param previous_actions: (n_act,) prev step action (currently unused)
+    @type previous_actions: jnp.ndarray
+    @param dropped: scalar bool — cube fell below the palm this step
+    @type dropped: jnp.ndarray
+    @return: (total, next_state, info, target_reached)
+    @rtype: tuple[jnp.ndarray, ReorientRewardState, dict[str, jnp.ndarray], jnp.ndarray]
+    """
+
+    del previous_actions, cube_pos, cube_linvel, finger_positions
 
     n_contacts = jnp.sum(finger_contact_mask).astype(jnp.float32)
 
@@ -67,7 +94,6 @@ def reorient_reward(
 
     cube_drop = jnp.where(dropped, drop_penalty_value, 0.0)
 
-    del previous_actions
     action_penalty = -0.0002 * jnp.sum(actions**2)
 
     contact_raw = contact_bonus_value * jnp.minimum(n_contacts / 3.0, 1.0)
@@ -105,6 +131,5 @@ def reorient_reward(
         "metrics/num_finger_contacts": n_contacts,
         "metrics/success_steps": new_success_steps.astype(jnp.float32),
     }
-    del cube_pos, cube_linvel, finger_positions
 
     return total, new_state, info, target_reached

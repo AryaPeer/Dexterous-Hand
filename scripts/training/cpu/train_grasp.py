@@ -17,9 +17,10 @@ from dexterous_hand.config import TrainConfig
 import dexterous_hand.envs  # noqa: F401 - triggers registration
 from scripts.training._common import VecNormSyncEvalCallback
 
+
 def make_env(rank: int, seed: int, config: TrainConfig) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
-        import dexterous_hand.envs  # noqa: F401,F811 - register in subprocess
+        import dexterous_hand.envs  # noqa: F401,F811
 
         env = gym.make(
             "ShadowHandGrasp-v0",

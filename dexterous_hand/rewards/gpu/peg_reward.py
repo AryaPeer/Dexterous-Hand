@@ -1,29 +1,29 @@
-
 from typing import NamedTuple
 
 import jax.numpy as jnp
 
 from dexterous_hand.config import PegRewardWeights
 
-def _sigmoid(x: jnp.ndarray) -> jnp.ndarray:
 
+def _sigmoid(x: jnp.ndarray) -> jnp.ndarray:
     return 1.0 / (1.0 + jnp.exp(-x))
 
-class PegRewardState(NamedTuple):
 
-    was_lifted: jnp.ndarray               
-    insertion_hold_steps: jnp.ndarray              
-    initial_peg_height: jnp.ndarray          
-    idle_steps: jnp.ndarray                                              
+class PegRewardState(NamedTuple):
+    was_lifted: jnp.ndarray
+    insertion_hold_steps: jnp.ndarray
+    initial_peg_height: jnp.ndarray
+    idle_steps: jnp.ndarray
+
 
 def init_peg_reward_state(initial_peg_height: float | jnp.ndarray) -> PegRewardState:
-
     return PegRewardState(
         was_lifted=jnp.array(False),
         insertion_hold_steps=jnp.array(0, dtype=jnp.int32),
         initial_peg_height=jnp.asarray(initial_peg_height),
         idle_steps=jnp.array(0, dtype=jnp.int32),
     )
+
 
 def peg_reward(
     state: PegRewardState,
@@ -57,16 +57,51 @@ def peg_reward(
     depth_reward_scale: float = 10.0,
     idle_grace_steps: int = 3,
 ) -> tuple[jnp.ndarray, PegRewardState, dict[str, jnp.ndarray]]:
+    """Total peg-in-hole reward + new state + per-component info dict.
+
+    @param state: previous-step reward state
+    @type state: PegRewardState
+    @param stage: current curriculum stage (0=reach, 1=grasp, 2=lift, 3=insert)
+    @type stage: jnp.ndarray
+    @param finger_positions: (5, 3) per-finger world positions
+    @type finger_positions: jnp.ndarray
+    @param peg_position: (3,) peg center
+    @type peg_position: jnp.ndarray
+    @param peg_axis: (3,) peg long axis (world frame)
+    @type peg_axis: jnp.ndarray
+    @param hole_position: (3,) hole center
+    @type hole_position: jnp.ndarray
+    @param hole_axis: (3,) hole insertion axis (world frame)
+    @type hole_axis: jnp.ndarray
+    @param insertion_depth: scalar peg-tip insertion depth
+    @type insertion_depth: jnp.ndarray
+    @param contact_force_magnitude: scalar wall contact force magnitude
+    @type contact_force_magnitude: jnp.ndarray
+    @param finger_contact_mask: (5,) bool mask of fingers in contact
+    @type finger_contact_mask: jnp.ndarray
+    @param peg_height: scalar peg z (world)
+    @type peg_height: jnp.ndarray
+    @param peg_linvel: (3,) peg linear velocity
+    @type peg_linvel: jnp.ndarray
+    @param actions: (n_act,) clipped action vector this step
+    @type actions: jnp.ndarray
+    @param previous_actions: (n_act,) prev step action (currently unused)
+    @type previous_actions: jnp.ndarray
+    @return: (total, next_state, info)
+    @rtype: tuple[jnp.ndarray, PegRewardState, dict[str, jnp.ndarray]]
+    """
+
+    del previous_actions
 
     ft_weights = jnp.asarray(fingertip_weights)
     n_contacts = jnp.sum(finger_contact_mask).astype(jnp.float32)
 
-           
+    # reach
     dists = jnp.linalg.norm(finger_positions - peg_position, axis=1)
     weighted_dist = jnp.sum(ft_weights * dists) / jnp.sum(ft_weights)
     reach = 1.0 - jnp.tanh(reach_tanh_k * weighted_dist)
 
-                                                                  
+    # grasp quality: thumb opposing the rest
     thumb_contact = finger_contact_mask[0]
     others_mask = finger_contact_mask.at[0].set(False)
     others_count = jnp.sum(others_mask)
@@ -91,15 +126,12 @@ def peg_reward(
     tripod_bonus = 0.5 * (thumb_contact & (others_count >= 2)).astype(jnp.float32)
     grasp = contact_scale * (0.3 + 0.7 * opposition) + tripod_bonus
 
-
     lift_height = jnp.maximum(peg_height - state.initial_peg_height, 0.0)
     lift = jnp.minimum(lift_height / lift_target, 1.5) * contact_scale
 
     was_lifted_next = state.was_lifted | (lift_height >= lift_target)
 
-
-
-
+    # align + insertion drive: gated on peg actually being above the table
     lateral_dist = jnp.linalg.norm(peg_position[:2] - hole_position[:2])
     axis_align = jnp.abs(jnp.dot(peg_axis, hole_axis))
     lateral_factor_align = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
@@ -116,11 +148,9 @@ def peg_reward(
         * 5.0
     )
 
-
     lateral_factor_depth = 1.0 - jnp.tanh(lateral_gate_k * lateral_dist)
     insertion_fraction = jnp.clip(insertion_depth / peg_length, 0.0, 1.0)
     depth_reward = depth_reward_scale * insertion_fraction * lateral_factor_depth
-
 
     new_hold = jnp.where(
         insertion_fraction > success_threshold,
@@ -136,7 +166,6 @@ def peg_reward(
         * _sigmoid((new_hold.astype(jnp.float32) - peg_hold_steps) / 2.0)
     )
 
-
     force_excess = jnp.maximum(0.0, contact_force_magnitude - force_threshold)
     force_penalty = -0.01 * force_excess**2
 
@@ -144,12 +173,9 @@ def peg_reward(
     drop = jnp.where(just_dropped, drop_penalty_value, 0.0)
     was_lifted = jnp.where(just_dropped, False, was_lifted_next)
 
-    del previous_actions
     action_penalty = -0.0002 * jnp.sum(actions**2)
 
-                                                                        
-                                                                        
-                                           
+    # idle penalty only fires in early stages so the policy isn't punished mid-insertion
     idle_active = (n_contacts == 0) & (stage < idle_stage_cutoff)
     new_idle_steps = jnp.where(
         idle_active, state.idle_steps + 1, jnp.array(0, dtype=jnp.int32)

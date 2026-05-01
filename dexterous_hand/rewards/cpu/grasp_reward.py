@@ -1,15 +1,21 @@
-
 import numpy as np
 
 from dexterous_hand.config import RewardConfig
 
-def _sigmoid(x: float) -> float:
 
+def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + float(np.exp(-x)))
 
-class GraspRewardCalculator:
 
+class GraspRewardCalculator:
     def __init__(self, config: RewardConfig, table_height: float) -> None:
+        """Grasp reward calculator.
+
+        @param config: reward weights and thresholds
+        @type config: RewardConfig
+        @param table_height: table surface height for lift calculations
+        @type table_height: float
+        """
 
         self.weights = config.weights
         self.reach_tanh_k = config.reach_tanh_k
@@ -31,6 +37,11 @@ class GraspRewardCalculator:
         self._was_success_prev = False
 
     def reset(self, initial_object_height: float | None = None) -> None:
+        """Reset for a new episode.
+
+        @param initial_object_height: object height at episode start; None defaults to table.
+        @type initial_object_height: float | None
+        """
 
         self._was_lifted = False
         self._idle_steps = 0
@@ -54,8 +65,27 @@ class GraspRewardCalculator:
         actions: np.ndarray,
         previous_actions: np.ndarray,
     ) -> tuple[float, dict[str, float]]:
+        """Total grasp reward: reaching + grasping + lifting + holding - penalties.
 
-        del previous_actions  # unused now; kept for API stability
+        @param finger_positions: (5, 3) per-finger representative positions
+        @type finger_positions: np.ndarray
+        @param object_position: (3,) object center
+        @type object_position: np.ndarray
+        @param object_linear_velocity: (3,) object velocity
+        @type object_linear_velocity: np.ndarray
+        @param num_fingers_in_contact: fingers touching the object
+        @type num_fingers_in_contact: int
+        @param contact_finger_indices: set of finger indices currently in contact
+        @type contact_finger_indices: set[int]
+        @param actions: (22,) current actions
+        @type actions: np.ndarray
+        @param previous_actions: (22,) last step's actions
+        @type previous_actions: np.ndarray
+        @return: (total, info) weighted reward sum and per-component breakdown
+        @rtype: tuple[float, dict[str, float]]
+        """
+
+        del previous_actions
 
         info: dict[str, float] = {}
         n_contacts = num_fingers_in_contact

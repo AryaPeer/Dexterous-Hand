@@ -1,15 +1,26 @@
-
 import logging
 
 from stable_baselines3.common.callbacks import BaseCallback
 
 logger = logging.getLogger(__name__)
 
+
 def scale_stage_starts(
     stages: list[tuple],
     total_timesteps: int,
     reference_total_timesteps: int,
 ) -> list[tuple]:
+    """Scale stage start timesteps from a reference run length to the current run length.
+
+    @param stages: list of (start_step, *params) tuples
+    @type stages: list[tuple]
+    @param total_timesteps: current run length
+    @type total_timesteps: int
+    @param reference_total_timesteps: run length the stage list was authored for
+    @type reference_total_timesteps: int
+    @return: stages with scaled (and monotonic, clamped, anchored-at-0) start steps
+    @rtype: list[tuple]
+    """
 
     if total_timesteps <= 0:
         raise ValueError("total_timesteps must be > 0")
@@ -34,16 +45,14 @@ def scale_stage_starts(
     scaled_stages[0] = (0, *scaled_stages[0][1:])
     return scaled_stages
 
+
 class ReorientCurriculumCallback(BaseCallback):
-
     def __init__(self, stages: list[tuple[int, float]], verbose: int = 0) -> None:
-
         super().__init__(verbose)
         self.stages = stages
         self._current_stage = 0
 
     def _on_training_start(self) -> None:
-
         if not self.stages:
             return
 
@@ -54,7 +63,6 @@ class ReorientCurriculumCallback(BaseCallback):
             logger.info("[Curriculum] Stage 0: max_angle=%.2f rad at step 0", max_angle)
 
     def _on_step(self) -> bool:
-
         while (
             self._current_stage < len(self.stages) - 1
             and self.num_timesteps >= self.stages[self._current_stage + 1][0]
@@ -73,16 +81,14 @@ class ReorientCurriculumCallback(BaseCallback):
 
         return True
 
+
 class AssemblyCurriculumCallback(BaseCallback):
-
     def __init__(self, stages: list[tuple[int, float, float]], verbose: int = 0) -> None:
-
         super().__init__(verbose)
         self.stages = stages
         self._current_stage = 0
 
     def _on_training_start(self) -> None:
-
         if not self.stages:
             return
 
@@ -98,7 +104,6 @@ class AssemblyCurriculumCallback(BaseCallback):
             )
 
     def _on_step(self) -> bool:
-
         while (
             self._current_stage < len(self.stages) - 1
             and self.num_timesteps >= self.stages[self._current_stage + 1][0]

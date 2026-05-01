@@ -1,12 +1,18 @@
-
 import numpy as np
 
 from dexterous_hand.config import ReorientRewardConfig
 from dexterous_hand.utils.cpu.quaternion import quat_angular_distance
 
-class ReorientRewardCalculator:
 
+class ReorientRewardCalculator:
     def __init__(self, config: ReorientRewardConfig, initial_cube_pos: np.ndarray) -> None:
+        """Reorient reward calculator.
+
+        @param config: reorient reward weights and thresholds
+        @type config: ReorientRewardConfig
+        @param initial_cube_pos: cube position at scene init (currently unused)
+        @type initial_cube_pos: np.ndarray
+        """
 
         self.weights = config.weights
         self.success_threshold = config.success_threshold
@@ -23,7 +29,6 @@ class ReorientRewardCalculator:
         self._prev_ang_dist: float | None = None
 
     def reset(self, initial_cube_pos: np.ndarray | None = None) -> None:
-
         self._success_steps = 0
         self._prev_ang_dist = None
         del initial_cube_pos
@@ -40,6 +45,29 @@ class ReorientRewardCalculator:
         previous_actions: np.ndarray,
         dropped: bool,
     ) -> tuple[float, dict[str, float], bool]:
+        """Total reorient reward + target-reached flag.
+
+        @param cube_quat: (4,) current cube orientation [w, x, y, z]
+        @type cube_quat: np.ndarray
+        @param target_quat: (4,) target orientation [w, x, y, z]
+        @type target_quat: np.ndarray
+        @param cube_pos: (3,) cube position (unused)
+        @type cube_pos: np.ndarray
+        @param cube_linvel: (3,) cube linear velocity (unused)
+        @type cube_linvel: np.ndarray
+        @param finger_positions: (5, 3) finger positions (unused)
+        @type finger_positions: np.ndarray
+        @param num_fingers_in_contact: fingers touching the cube
+        @type num_fingers_in_contact: int
+        @param actions: (22,) current actions
+        @type actions: np.ndarray
+        @param previous_actions: (22,) last step's actions
+        @type previous_actions: np.ndarray
+        @param dropped: whether the cube has fallen below the table this step
+        @type dropped: bool
+        @return: (total, info, target_reached) reward sum, breakdown, and success flag
+        @rtype: tuple[float, dict[str, float], bool]
+        """
 
         info: dict[str, float] = {}
 

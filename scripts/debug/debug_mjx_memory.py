@@ -1,14 +1,3 @@
-"""Inspect per-env sizes of MJX Data fields for the grasp scene.
-
-Reports which fields dominate memory under vmap so we can target fixes.
-Manual diagnostic — NOT wired into main.py, invoke directly:
-
-    uv run python scripts/debug_mjx_memory.py
-    uv run python scripts/debug_mjx_memory.py --num-envs 256   # bigger sample
-
-No training happens; just builds model, constructs a vmapped mjx.Data,
-and prints field shapes + sizes sorted by bytes/env.
-"""
 from __future__ import annotations
 
 import argparse

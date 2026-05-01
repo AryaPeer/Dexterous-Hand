@@ -1,15 +1,16 @@
-
 import mujoco
 import numpy as np
 
-                                          
-JOINT_QPOS_SIZE = {0: 7, 1: 4, 2: 1, 3: 1}                            
+# MuJoCo joint type -> qpos/dof dimensions
+JOINT_QPOS_SIZE = {0: 7, 1: 4, 2: 1, 3: 1}  # free, ball, slide, hinge
 JOINT_DOF_SIZE = {0: 6, 1: 3, 2: 1, 3: 1}
+
 
 def get_joint_qpos_qvel_range(
     model: mujoco.MjModel,
     joint_ids: list[int],
 ) -> tuple[int, int, int, int]:
+    """(qpos_start, qpos_end, qvel_start, qvel_end) for a contiguous block of joints."""
 
     first, last = joint_ids[0], joint_ids[-1]
     last_type = int(model.jnt_type[last])
@@ -21,13 +22,16 @@ def get_joint_qpos_qvel_range(
 
     return qpos_start, qpos_end, qvel_start, qvel_end
 
+
 def get_fingertip_positions(
     data: mujoco.MjData,
     fingertip_site_ids: list[int],
 ) -> np.ndarray:
+    """World positions of all fingertip sites -> (N, 3)."""
 
     result: np.ndarray = data.site_xpos[fingertip_site_ids].copy()
     return result
+
 
 def get_finger_contacts(
     model: mujoco.MjModel,
@@ -35,6 +39,7 @@ def get_finger_contacts(
     finger_geom_ids_per_finger: list[set[int]],
     object_geom_id: int,
 ) -> tuple[int, set[int]]:
+    """Which fingers are touching the object (any geom on each finger link chain)."""
 
     contact_finger_indices: set[int] = set()
     geom_to_finger: dict[int, int] = {}
@@ -54,12 +59,18 @@ def get_finger_contacts(
 
     return len(contact_finger_indices), contact_finger_indices
 
+
 def get_object_state(
     data: mujoco.MjData,
     object_body_id: int,
     obj_qpos_start: int,
     obj_qvel_start: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Position, orientation, and velocities of a free-joint object.
+
+    @return: (position (3,), quaternion (4,), linear_vel (3,), angular_vel (3,))
+    @rtype: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+    """
 
     position = data.xpos[object_body_id].copy()
     orientation = data.qpos[obj_qpos_start + 3 : obj_qpos_start + 7].copy()
@@ -68,9 +79,12 @@ def get_object_state(
 
     return position, orientation, linear_vel, angular_vel
 
+
 def get_palm_position(data: mujoco.MjData, palm_body_id: int) -> np.ndarray:
+    """Palm world position."""
 
     return np.array(data.xpos[palm_body_id].copy())
+
 
 def get_insertion_depth(
     data: mujoco.MjData,
@@ -79,6 +93,7 @@ def get_insertion_depth(
     peg_half_length: float,
     peg_radius: float = 0.0,
 ) -> float:
+    """Peg tip insertion depth along hole Z axis (0 if not inserted)."""
 
     peg_pos = data.xpos[peg_body_id]
     hole_pos = data.xpos[hole_body_id]
@@ -95,11 +110,17 @@ def get_insertion_depth(
 
     return max(depth, 0.0)
 
+
 def get_peg_hole_relative(
     data: mujoco.MjData,
     peg_body_id: int,
     hole_body_id: int,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Relative position and angular error between peg and hole.
+
+    @return: (rel_pos (3,), angular_error (3,))
+    @rtype: tuple[np.ndarray, np.ndarray]
+    """
 
     peg_pos = data.xpos[peg_body_id].copy()
     hole_pos = data.xpos[hole_body_id].copy()
@@ -119,10 +140,12 @@ def get_peg_hole_relative(
 
     return rel_pos, angular_error
 
+
 def get_body_axis(
     data: mujoco.MjData,
     body_id: int,
     axis: int = 2,
 ) -> np.ndarray:
+    """Body's local axis in world frame (default Z). Returns (3,)."""
 
     return np.array(data.xmat[body_id].reshape(3, 3)[:, axis].copy())

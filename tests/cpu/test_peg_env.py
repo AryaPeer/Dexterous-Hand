@@ -3,6 +3,7 @@ import pytest
 
 import dexterous_hand.envs  # noqa: F401
 
+
 @pytest.mark.slow
 class TestPegEnvSpaces:
     def test_observation_shape(self, peg_env):

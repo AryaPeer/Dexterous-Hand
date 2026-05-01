@@ -1,7 +1,8 @@
-
 import numpy as np
 
+
 def quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
+    """Hamilton product. All quats in this file are [w, x, y, z] (MuJoCo convention)."""
 
     w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
@@ -14,17 +15,23 @@ def quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
         ]
     )
 
+
 def quat_conjugate(q: np.ndarray) -> np.ndarray:
+    """Conjugate (= inverse for unit quats)."""
 
     return np.array([q[0], -q[1], -q[2], -q[3]])
 
+
 def quat_angular_distance(q1: np.ndarray, q2: np.ndarray) -> float:
+    """Geodesic angle between two orientations [0, pi]. Handles double-cover."""
 
     dot = np.clip(np.abs(np.dot(q1, q2)), 0.0, 1.0)
 
     return 2.0 * float(np.arccos(dot))
 
+
 def random_quaternion(rng: np.random.Generator) -> np.ndarray:
+    """Uniform random rotation on SO(3) (Marsaglia's method)."""
 
     u1, u2, u3 = rng.uniform(0, 1, size=3)
     s1 = np.sqrt(1.0 - u1)
@@ -33,11 +40,13 @@ def random_quaternion(rng: np.random.Generator) -> np.ndarray:
     a2 = 2.0 * np.pi * u3
     return np.array([s2 * np.cos(a2), s1 * np.sin(a1), s1 * np.cos(a1), s2 * np.sin(a2)])
 
+
 def random_quaternion_within_angle(
     rng: np.random.Generator,
     max_angle_rad: float,
     min_angle_rad: float = 0.0,
 ) -> np.ndarray:
+    """Random rotation within [min_angle_rad, max_angle_rad]. Falls back to full SO(3) if span is full."""
 
     if max_angle_rad >= np.pi * 2.0 and min_angle_rad <= 0.0:
         return random_quaternion(rng)
@@ -53,7 +62,9 @@ def random_quaternion_within_angle(
     s = np.sin(half)
     return np.array([np.cos(half), axis[0] * s, axis[1] * s, axis[2] * s])
 
+
 def quat_to_rotation_matrix(q: np.ndarray) -> np.ndarray:
+    """Quaternion -> 3x3 rotation matrix."""
 
     w, x, y, z = q
     return np.array(
@@ -64,19 +75,25 @@ def quat_to_rotation_matrix(q: np.ndarray) -> np.ndarray:
         ]
     )
 
+
 def quat_rotate_vector(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """Rotate vector v by quaternion q (sandwich product)."""
 
     q_v = np.array([0.0, v[0], v[1], v[2]])
     result = quat_multiply(quat_multiply(q, q_v), quat_conjugate(q))
     return result[1:]
 
+
 def quat_from_axis_angle(axis: np.ndarray, angle: float) -> np.ndarray:
+    """Axis-angle -> quaternion."""
 
     half = angle / 2.0
     s = np.sin(half)
     return np.array([np.cos(half), axis[0] * s, axis[1] * s, axis[2] * s])
 
+
 def quat_to_axis_angle(q: np.ndarray) -> tuple[np.ndarray, float]:
+    """Quaternion -> (axis, angle)."""
 
     w = np.clip(q[0], -1.0, 1.0)
     angle = 2.0 * np.arccos(np.abs(w))

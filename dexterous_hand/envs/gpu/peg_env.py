@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import math
@@ -44,8 +43,8 @@ class PegEnvState(NamedTuple):
     step_count: jnp.ndarray
     key: jax.Array
 
-class ShadowHandPegMjxEnv(MjxVecEnv):
 
+class ShadowHandPegMjxEnv(MjxVecEnv):
     def __init__(
         self,
         num_envs: int = 2048,
@@ -56,6 +55,24 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         obs_noise_std: float = 0.0,
         dr: DomainRandomization | None = None,
     ) -> None:
+        """Build the batched peg env.
+
+        @param num_envs: number of parallel envs
+        @type num_envs: int
+        @param seed: PRNG seed
+        @type seed: int
+        @param scene_config: peg scene physics + layout
+        @type scene_config: PegSceneConfig | None
+        @param reward_config: peg reward weights and thresholds
+        @type reward_config: PegRewardConfig | None
+        @param max_episode_steps: per-env episode horizon
+        @type max_episode_steps: int
+        @param obs_noise_std: gaussian obs noise std
+        @type obs_noise_std: float
+        @param dr: domain randomization config
+        @type dr: DomainRandomization | None
+        """
+
         self.scene_config = scene_config or PegSceneConfig()
         self.reward_config = reward_config or PegRewardConfig()
         if self.scene_config.spawn_max_radius <= self.scene_config.spawn_min_radius:
@@ -157,8 +174,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         mjx_data = mjx_data.replace(qpos=qpos, qvel=qvel)
         mjx_data = mjx.forward(mjx_model, mjx_data)
 
-
-
+        # peg spawn: radial sampling around the hole (mirrors CPU peg env)
         min_r = float(self.scene_config.spawn_min_radius)
         max_r = float(self.scene_config.spawn_max_radius)
         r = jax.random.uniform(k2, minval=min_r, maxval=max_r)
@@ -186,10 +202,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
         mjx_data = mjx_data.replace(qpos=qpos, qvel=jnp.zeros(mjx_model.nv))
         mjx_data = mjx.forward(mjx_model, mjx_data)
 
-        # settle the contact solver before the policy starts acting. with
-        # p_pre_grasped > 0 the peg is teleported inside closed fingers, which
-        # is exactly the kind of geometric interpenetration that produces
-        # impulse spikes and NaN qpos under SAC's high-entropy early actions.
+        # settle contacts before the policy acts: pre-grasp can interpenetrate fingers and NaN under SAC.
         zero_ctrl = jnp.zeros(mjx_model.nu)
         mjx_data = mjx_data.replace(ctrl=zero_ctrl)
 
@@ -235,7 +248,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
 
         mjx_data, _ = jax.lax.scan(_substep, mjx_data, None, length=self.scene_config.frame_skip)
 
-                    
+        # reward inputs
         finger_pos = get_fingertip_positions_jax(mjx_data.site_xpos, self._fingertip_site_ids)
         peg_pos, peg_quat, peg_linvel, peg_angvel = get_object_state_jax(
             mjx_data.qpos,
@@ -266,11 +279,11 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             peg_radius,
         )
 
-                                                                                      
+        # per-wall contact force magnitudes (sum over all hole walls)
         wall_vals = mjx_data.sensordata[self._wall_force_adr]
         contact_force_mag = jnp.sum(wall_vals)
 
-                        
+        # curriculum stage gating
         fingers_on_peg = n_contacts >= 2
         peg_lifted = peg_pos[2] > env_state.initial_peg_height + 0.02
         peg_near_hole = jnp.linalg.norm(peg_pos[:2] - hole_pos[:2]) < 0.03
@@ -382,7 +395,7 @@ class ShadowHandPegMjxEnv(MjxVecEnv):
             self.scene_config.peg_radius,
         )
 
-                                                                      
+        # per-wall + total contact forces, exposed to the policy
         per_wall_forces = mjx_data.sensordata[self._wall_force_adr]
         contact_force_mag = jnp.sum(per_wall_forces)
         contact_forces = jnp.concatenate([per_wall_forces, jnp.array([contact_force_mag])])

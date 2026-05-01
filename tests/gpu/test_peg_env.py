@@ -7,6 +7,7 @@ pytest.importorskip("jax")
 
 from dexterous_hand.envs.gpu.peg_env import ShadowHandPegMjxEnv  # noqa: E402
 
+
 @pytest.mark.slow
 class TestPegMjxSmoke:
     def test_reset_and_step(self):

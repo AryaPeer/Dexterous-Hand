@@ -1,27 +1,26 @@
-
 from typing import NamedTuple
 
 import jax.numpy as jnp
 
 from dexterous_hand.config import RewardWeights
 
-def _sigmoid(x: jnp.ndarray) -> jnp.ndarray:
 
+def _sigmoid(x: jnp.ndarray) -> jnp.ndarray:
     return 1.0 / (1.0 + jnp.exp(-x))
 
-class GraspRewardState(NamedTuple):
 
+class GraspRewardState(NamedTuple):
     was_lifted: jnp.ndarray
     initial_height_above_table: jnp.ndarray
     idle_steps: jnp.ndarray
     success_hold_counter: jnp.ndarray
     was_success_prev: jnp.ndarray
 
+
 def init_grasp_reward_state(
     initial_object_height: float,
     table_height: float,
 ) -> GraspRewardState:
-
     return GraspRewardState(
         was_lifted=jnp.array(False),
         initial_height_above_table=jnp.maximum(
@@ -31,6 +30,7 @@ def init_grasp_reward_state(
         success_hold_counter=jnp.array(0, dtype=jnp.int32),
         was_success_prev=jnp.array(False),
     )
+
 
 def grasp_reward(
     state: GraspRewardState,
@@ -54,8 +54,27 @@ def grasp_reward(
     fingertip_weights: tuple[float, float, float, float, float] = (2.5, 1.0, 1.0, 1.0, 1.0),
     idle_grace_steps: int = 3,
 ) -> tuple[jnp.ndarray, GraspRewardState, dict[str, jnp.ndarray]]:
+    """Total grasp reward + new state + per-component info dict.
 
-    del previous_actions  # no action-rate penalty; kept for API stability
+    @param state: previous-step reward state (lift/idle/success counters)
+    @type state: GraspRewardState
+    @param finger_positions: (5, 3) per-finger world positions
+    @type finger_positions: jnp.ndarray
+    @param object_position: (3,) object center
+    @type object_position: jnp.ndarray
+    @param object_linear_velocity: (3,) object velocity
+    @type object_linear_velocity: jnp.ndarray
+    @param finger_contact_mask: (5,) bool mask of which fingers touch the object
+    @type finger_contact_mask: jnp.ndarray
+    @param actions: (n_act,) clipped action vector this step
+    @type actions: jnp.ndarray
+    @param previous_actions: (n_act,) action from the previous step (currently unused)
+    @type previous_actions: jnp.ndarray
+    @return: (total, next_state, info)
+    @rtype: tuple[jnp.ndarray, GraspRewardState, dict[str, jnp.ndarray]]
+    """
+
+    del previous_actions
 
     ft_weights = jnp.asarray(fingertip_weights)
 

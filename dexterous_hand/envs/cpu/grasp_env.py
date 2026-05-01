@@ -20,6 +20,7 @@ from dexterous_hand.utils.cpu.mujoco_helpers import (
     get_palm_position,
 )
 
+
 class ShadowHandGraspEnv(gym.Env):
     metadata = {
         "render_modes": ["human", "rgb_array"],
@@ -32,6 +33,15 @@ class ShadowHandGraspEnv(gym.Env):
         scene_config: SceneConfig | None = None,
         reward_config: RewardConfig | None = None,
     ) -> None:
+        """Shadow Hand grasp env (CPU mujoco).
+
+        @param render_mode: 'human' for viewer, 'rgb_array' for offscreen
+        @type render_mode: str | None
+        @param scene_config: physics and scene layout
+        @type scene_config: SceneConfig | None
+        @param reward_config: reward weights and thresholds
+        @type reward_config: RewardConfig | None
+        """
 
         super().__init__()
 
@@ -39,10 +49,10 @@ class ShadowHandGraspEnv(gym.Env):
         self.reward_config = reward_config or RewardConfig()
         self.render_mode = render_mode
 
-
+        # build scene and spaces
         self.model, self.data, self.nm = build_scene(self.scene_config)
 
-        n_obs = 105                         
+        n_obs = 105
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_obs,), dtype=np.float64
         )
@@ -50,19 +60,19 @@ class ShadowHandGraspEnv(gym.Env):
             low=-1.0, high=1.0, shape=(self.nm.n_actuators,), dtype=np.float32
         )
 
-                
+        # reward
         self.reward_calculator = GraspRewardCalculator(
             config=self.reward_config,
             table_height=self.scene_config.table_height,
         )
 
-
+        # state tracking
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._init_qpos = self.data.qpos.copy()
         apply_flexion_bias(self._init_qpos, self.model)
 
-                   
+        # rendering
         self._renderer: mujoco.Renderer | None = None
         if render_mode == "human":
             self._viewer: mujoco.viewer.Handle | None = None
@@ -73,6 +83,15 @@ class ShadowHandGraspEnv(gym.Env):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, dict[str, Any]]:
+        """Reset with the cube at a random small XY offset on the table.
+
+        @param seed: random seed
+        @type seed: int | None
+        @param options: unused
+        @type options: dict[str, Any] | None
+        @return: (obs (105,), info)
+        @rtype: tuple[np.ndarray, dict[str, Any]]
+        """
 
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
@@ -104,7 +123,6 @@ class ShadowHandGraspEnv(gym.Env):
         return obs, info
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
-
         action = np.clip(action, -1.0, 1.0)
         alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
         if alpha > 0.0:
@@ -118,7 +136,7 @@ class ShadowHandGraspEnv(gym.Env):
 
         mujoco.mj_step(self.model, self.data, nstep=self.scene_config.frame_skip)
 
-                    
+        # reward inputs
         finger_pos = get_fingertip_positions(self.data, self.nm.fingertip_site_ids)
 
         obj_pos, obj_quat, obj_linvel, obj_angvel = get_object_state(
@@ -145,7 +163,6 @@ class ShadowHandGraspEnv(gym.Env):
             previous_actions=self._previous_actions,
         )
 
-
         self._previous_actions = action.astype(np.float64).copy()
         terminated = False
 
@@ -166,7 +183,6 @@ class ShadowHandGraspEnv(gym.Env):
         return obs, float(reward), terminated, truncated, info
 
     def _get_obs(self) -> np.ndarray:
-
         nm = self.nm
 
         joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]
@@ -182,22 +198,21 @@ class ShadowHandGraspEnv(gym.Env):
 
         obs = np.concatenate(
             [
-                joint_pos,      
-                joint_vel,      
-                obj_pos,     
-                obj_quat,     
-                obj_linvel,     
-                obj_angvel,     
-                rel_pos,     
-                fingertip_pos,      
-                self._previous_actions,      
+                joint_pos,
+                joint_vel,
+                obj_pos,
+                obj_quat,
+                obj_linvel,
+                obj_angvel,
+                rel_pos,
+                fingertip_pos,
+                self._previous_actions,
             ]
         )
 
         return obs
 
     def render(self) -> np.ndarray | None:  # type: ignore[override]
-
         if self.render_mode == "rgb_array":
             if self._renderer is None:
                 self._renderer = mujoco.Renderer(self.model, height=480, width=640)
@@ -215,7 +230,6 @@ class ShadowHandGraspEnv(gym.Env):
         return None
 
     def close(self) -> None:
-
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None

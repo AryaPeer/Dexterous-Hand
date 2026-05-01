@@ -1,4 +1,3 @@
-"""Random-policy reward probe. Flags reward components dominating |total|."""
 from __future__ import annotations
 
 import argparse
@@ -21,8 +20,7 @@ def build_env(task: str, num_envs: int, seed: int):
         from dexterous_hand.envs.gpu.peg_env import ShadowHandPegMjxEnv
         cfg = MjxPegTrainConfig(num_envs=num_envs, seed=seed)
         env = ShadowHandPegMjxEnv.from_config(cfg)
-        # peg gates align/depth on the curriculum stage; pin to stage 0 so the
-        # probe sees the same dynamics the agent does at the start of training.
+        # peg align/depth are gated on curriculum stage; pin to stage 0 to mirror training start.
         stage0 = cfg.curriculum_stages[0]
         env.set_curriculum_params(clearance=stage0[1], p_pre_grasped=stage0[2])
         return env
@@ -34,7 +32,9 @@ def build_env(task: str, num_envs: int, seed: int):
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(
+        description="Random-policy reward probe; flags components dominating |total|."
+    )
     ap.add_argument("--task", choices=["grasp", "peg", "reorient"], required=True)
     ap.add_argument("--num-envs", type=int, default=32)
     ap.add_argument("--steps", type=int, default=2_000)

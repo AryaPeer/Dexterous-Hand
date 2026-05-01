@@ -10,6 +10,7 @@ from dexterous_hand.utils.cpu.mujoco_helpers import (
     get_palm_position,
 )
 
+
 @pytest.fixture(scope="module")
 def grasp_scene():
     model, data, nm = build_scene()

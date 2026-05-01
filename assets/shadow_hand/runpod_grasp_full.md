@@ -188,7 +188,44 @@ the latest checkpoint and call `model.learn(total_timesteps=remaining,
 reset_num_timesteps=False)`. Easiest path is to restart from scratch if
 the crash is early; checkpoint recovery is only worth it past ~25 M.
 
-## 11. Cost summary
+## 11. Extending past 70 M (resume from final_model)
+
+If the 70 M run finishes and the policy is "nearly there" — `eval/success_rate`
+> 0 but below your bar, or reward still trending up at the final eval — you
+do **not** need to relaunch from scratch. SBX policies pickle their full
+optimizer state, and `model.learn(reset_num_timesteps=False)` continues
+the run as if it had simply been longer.
+
+A wired CLI is provided. To add 30 M on top of the existing 70 M:
+
+```
+uv run python main.py resume-grasp-mjx \
+    --model-path /workspace/runs/grasp_mjx_768env_42/final_model.zip \
+    --vec-normalize-path /workspace/runs/grasp_mjx_768env_42/vec_normalize.pkl \
+    --additional-timesteps 30000000 \
+    --num-envs 768 \
+    --seed 42
+```
+
+Output lands in `<input_dir>_resumed/` by default (override with
+`--output-dir`). Three things that matter under the hood:
+
+1. **`reset_num_timesteps=False`** — without this, `model.num_timesteps`
+   resets to 0 and any timestep-based callbacks (curriculum, eval cadence)
+   re-fire from scratch. Grasp has no curriculum so this is mostly cosmetic
+   here, but make a habit of always setting it on resume.
+2. **Reload `vec_normalize.pkl`** into the new env via `VecNormalize.load`.
+   Otherwise observation running stats reset → the policy sees a different
+   input distribution than the one it trained on → you can lose 5-10 M
+   timesteps of progress to re-stabilization.
+3. **Resume `total_timesteps` is the *additional* budget**, not the
+   cumulative target. Pass `30_000_000` to add 30 M on top.
+
+Cost: 30 M resume ≈ 12 hr / $12 on 5090. Adding 30 M to a 70 M base is
+strictly cheaper than retraining 100 M from scratch ($40), and you keep
+the 70 M of learning already in the policy.
+
+## 12. Cost summary
 
 Single-pod cost: ~$28 on 5090. If grasp completes successfully, the
 round-8 program looks like:
@@ -197,6 +234,6 @@ round-8 program looks like:
 | ----------------------- | ------ |
 | grasp full (this doc)   | ~$28   |
 | peg sanity              | ~$1    |
-| peg full (post-sanity)  | ~$28   |
+| peg full 100 M (post-sanity) | ~$40 |
 | reorient 200 M (in flight) | ~$80 |
-| **program total**       | **~$137** |
+| **program total**       | **~$149** |

@@ -19,6 +19,7 @@ from dexterous_hand.utils.cpu.mujoco_helpers import (
     get_peg_hole_relative,
 )
 
+
 class ShadowHandPegEnv(gym.Env):
     metadata = {
         "render_modes": ["human", "rgb_array"],
@@ -31,6 +32,15 @@ class ShadowHandPegEnv(gym.Env):
         scene_config: PegSceneConfig | None = None,
         reward_config: PegRewardConfig | None = None,
     ) -> None:
+        """Shadow Hand peg-in-hole env (CPU mujoco).
+
+        @param render_mode: 'human' for viewer, 'rgb_array' for offscreen
+        @type render_mode: str | None
+        @param scene_config: peg scene physics + layout
+        @type scene_config: PegSceneConfig | None
+        @param reward_config: peg reward weights and thresholds
+        @type reward_config: PegRewardConfig | None
+        """
 
         super().__init__()
 
@@ -38,10 +48,10 @@ class ShadowHandPegEnv(gym.Env):
         self.reward_config = reward_config or PegRewardConfig()
         self.render_mode = render_mode
 
-                                
+        # build scene and spaces
         self.model, self.data, self.nm = build_peg_scene(self.scene_config)
 
-        n_obs = 131                                         
+        n_obs = 131
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_obs,), dtype=np.float64
         )
@@ -49,7 +59,7 @@ class ShadowHandPegEnv(gym.Env):
             low=-1.0, high=1.0, shape=(self.nm.n_actuators,), dtype=np.float32
         )
 
-                
+        # reward
         self.reward_calculator = PegRewardCalculator(
             config=self.reward_config,
             table_height=self.scene_config.table_height,
@@ -57,7 +67,7 @@ class ShadowHandPegEnv(gym.Env):
             peg_radius=self.scene_config.peg_radius,
         )
 
-                        
+        # state tracking
         self._previous_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._smoothed_actions = np.zeros(self.nm.n_actuators, dtype=np.float64)
         self._stage = 0
@@ -73,7 +83,7 @@ class ShadowHandPegEnv(gym.Env):
             self.model, mujoco.mjtObj.mjOBJ_SITE, "grasp_site"
         )
 
-                   
+        # rendering
         self._renderer: mujoco.Renderer | None = None
         if render_mode == "human":
             self._viewer: mujoco.viewer.Handle | None = None
@@ -90,6 +100,15 @@ class ShadowHandPegEnv(gym.Env):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, dict[str, Any]]:
+        """Reset peg-in-hole episode (rebuilds the scene if clearance changed).
+
+        @param seed: random seed
+        @type seed: int | None
+        @param options: unused
+        @type options: dict[str, Any] | None
+        @return: (obs (131,), info with current curriculum stage)
+        @rtype: tuple[np.ndarray, dict[str, Any]]
+        """
 
         super().reset(seed=seed)
 
@@ -115,15 +134,12 @@ class ShadowHandPegEnv(gym.Env):
 
         s = self.nm.peg_qpos_start
         if spawn_pre_grasped:
-            # match GPU peg env — place peg at the grasp_site's world position so
-            # the pre-curled fingers start in geometric contact with the peg.
+            # match GPU peg env: place peg at the grasp_site so closed fingers are already in contact.
             peg_pos = self.data.site_xpos[self._grasp_site_id].copy()
             self.data.qpos[s : s + 3] = peg_pos
             self.data.qpos[s + 3 : s + 7] = [1.0, 0.0, 0.0, 0.0]
         else:
-            # radial sampling: r ∈ [spawn_min_radius, 0.05·√2] around the hole.
-            # matches the GPU peg env distribution exactly; the previous
-            # square-rejection sampler gave CPU a tighter distribution than GPU.
+            # radial sampling to mirror the GPU peg distribution exactly.
             hole_xy = np.array(self.scene_config.hole_offset[:2], dtype=np.float64)
             min_r = self.scene_config.spawn_min_radius
             max_r = 0.05 * float(np.sqrt(2.0))
@@ -157,7 +173,6 @@ class ShadowHandPegEnv(gym.Env):
         return obs, info
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
-
         action = np.clip(action, -1.0, 1.0)
         alpha = float(np.clip(self.scene_config.action_smoothing_alpha, 0.0, 1.0))
         if alpha > 0.0:
@@ -193,7 +208,7 @@ class ShadowHandPegEnv(gym.Env):
         hole_axis = get_body_axis(self.data, nm.hole_body_id)
         hole_pos = self.data.xpos[nm.hole_body_id].copy()
 
-                                    
+        # peg geometry for insertion depth
         peg_half_length = self.scene_config.peg_half_length
         peg_radius = self.scene_config.peg_radius
 
@@ -205,7 +220,7 @@ class ShadowHandPegEnv(gym.Env):
         per_wall_forces = np.asarray(self.data.sensordata[wall_force_adr], dtype=np.float64)
         contact_force_mag = float(np.sum(per_wall_forces))
 
-                                                                                       
+        # curriculum stage gating: 0=reach, 1=grasp, 2=lift, 3=above-hole + aligned
         fingers_on_peg = num_contacts >= 2
         peg_lifted = peg_pos[2] > self._initial_peg_height + 0.02
         peg_near_hole = float(np.linalg.norm(peg_pos[:2] - hole_pos[:2])) < 0.03
@@ -228,7 +243,7 @@ class ShadowHandPegEnv(gym.Env):
                 target = 3
             self._stage = max(self._stage, target)
 
-                
+        # reward
         peg_height = float(peg_pos[2])
 
         reward, reward_info = self.reward_calculator.compute(
@@ -273,7 +288,6 @@ class ShadowHandPegEnv(gym.Env):
         return obs, float(reward), terminated, truncated, info
 
     def _get_obs(self) -> np.ndarray:
-
         nm = self.nm
 
         joint_pos = self.data.qpos[nm.hand_qpos_start : nm.hand_qpos_end]
@@ -311,35 +325,33 @@ class ShadowHandPegEnv(gym.Env):
 
         obs = np.concatenate(
             [
-                joint_pos,      
-                joint_vel,      
-                peg_pos,     
-                peg_quat,     
-                peg_linvel,     
-                peg_angvel,     
-                hole_pos,     
-                hole_quat,     
-                rel_pos,     
-                ang_error,     
-                fingertip_pos.flatten(),      
-                fingertip_peg_dist,     
-                rel_peg_to_palm,     
-                [insertion_depth],     
-                contact_forces,     
-                [float(self._stage)],     
-                self._previous_actions,      
+                joint_pos,
+                joint_vel,
+                peg_pos,
+                peg_quat,
+                peg_linvel,
+                peg_angvel,
+                hole_pos,
+                hole_quat,
+                rel_pos,
+                ang_error,
+                fingertip_pos.flatten(),
+                fingertip_peg_dist,
+                rel_peg_to_palm,
+                [insertion_depth],
+                contact_forces,
+                [float(self._stage)],
+                self._previous_actions,
             ]
         )
 
         return obs
 
     def set_curriculum_params(self, clearance: float, p_pre_grasped: float) -> None:
-
         self._clearance = clearance
         self._p_pre_grasped = float(p_pre_grasped)
 
     def render(self) -> np.ndarray | None:  # type: ignore[override]
-
         if self.render_mode == "rgb_array":
             if self._renderer is None:
                 self._renderer = mujoco.Renderer(self.model, height=480, width=640)
@@ -357,7 +369,6 @@ class ShadowHandPegEnv(gym.Env):
         return None
 
     def close(self) -> None:
-
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None

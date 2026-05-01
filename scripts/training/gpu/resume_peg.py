@@ -7,12 +7,12 @@ from sbx import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor, VecNormalize
 
-import dexterous_hand.envs  # noqa: F401
 from dexterous_hand.config import MjxPegTrainConfig
 from dexterous_hand.curriculum.callbacks import (
     AssemblyCurriculumCallback,
     scale_stage_starts,
 )
+import dexterous_hand.envs  # noqa: F401
 from dexterous_hand.envs.gpu.peg_env import ShadowHandPegMjxEnv
 from scripts.training._common import (
     RewardInfoLoggerCallback,
@@ -21,6 +21,7 @@ from scripts.training._common import (
     make_cpu_eval_env,
     setup_sb3_logger,
 )
+
 
 def train(args: SimpleNamespace) -> None:
 

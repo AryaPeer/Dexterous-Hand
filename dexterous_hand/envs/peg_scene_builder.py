@@ -16,9 +16,9 @@ from dexterous_hand.envs.scene_builder import (
 )
 from dexterous_hand.utils.cpu.mujoco_helpers import get_joint_qpos_qvel_range
 
+
 @dataclass
 class PegNameMap:
-
     hand_joint_ids: list[int]
     hand_actuator_ids: list[int]
     hand_qpos_start: int
@@ -26,7 +26,7 @@ class PegNameMap:
     hand_qvel_start: int
     hand_qvel_end: int
     n_actuators: int
-    ctrl_ranges: np.ndarray                    
+    ctrl_ranges: np.ndarray
 
     palm_body_id: int
     fingertip_site_ids: list[int]
@@ -44,9 +44,17 @@ class PegNameMap:
     hole_quat: np.ndarray = field(default_factory=lambda: np.array([1.0, 0.0, 0.0, 0.0]))
     sensor_map: SensorMap = field(default_factory=SensorMap.empty)
 
+
 def build_peg_scene(
     config: PegSceneConfig | None = None,
 ) -> tuple[mujoco.MjModel, mujoco.MjData, PegNameMap]:
+    """Compile the table+hand+peg+hole scene.
+
+    @param config: peg scene physics + layout (clearance, hole offset, etc.)
+    @type config: PegSceneConfig | None
+    @return: (model, data, name_map)
+    @rtype: tuple[mujoco.MjModel, mujoco.MjData, PegNameMap]
+    """
 
     if config is None:
         config = PegSceneConfig()
@@ -154,7 +162,7 @@ def build_peg_scene(
             rgba=[1.0, 0.0, 0.0, 1.0],
         )
 
-                                                                       
+    # touch sensor sites: spheres co-located with the fingertip
     for body_name, touch_site in zip(FINGERTIP_BODIES, FINGER_TOUCH_SITE_NAMES, strict=True):
         body = spec.body(body_name)
         offset = FINGERTIP_OFFSETS[body_name]
@@ -174,7 +182,7 @@ def build_peg_scene(
             objname=touch_site,
         )
 
-                                                              
+    # per-wall touch sensors so the reward can read individual hole-wall forces
     wall_sensor_names = [
         "hole_wall_px",
         "hole_wall_nx",
@@ -190,12 +198,8 @@ def build_peg_scene(
             objname=f"site_{wall_name}",
         )
 
-
-
-
-
-
-
+    # peg + hole walls live on disjoint contype/conaffinity bits so they only
+    # interact with the hand and each other, not with the table or floor.
     peg_kwargs = dict(
         contype=3,
         conaffinity=3,
@@ -286,7 +290,7 @@ def build_peg_scene(
         **wall_kwargs,
     )
 
-                                           
+    # touch-sensor sites on each wall, sized to match the wall thickness
     wall_positions = {
         "hole_wall_px": [cr + wt / 2, 0.0, -wh],
         "hole_wall_nx": [-(cr + wt / 2), 0.0, -wh],
@@ -294,9 +298,6 @@ def build_peg_scene(
         "hole_wall_ny": [0.0, -(cr + wt / 2), -wh],
         "hole_bottom": [0.0, 0.0, -config.hole_depth],
     }
-                                                                                
-                                                                                 
-                                               
     for wall_name, pos in wall_positions.items():
         site_size = cr if wall_name == "hole_bottom" else wt / 2
         hole_body.add_site(
@@ -313,14 +314,14 @@ def build_peg_scene(
 
     return model, data, name_map
 
-def _resolve_peg_names(model: mujoco.MjModel, config: PegSceneConfig) -> PegNameMap:
 
-               
+def _resolve_peg_names(model: mujoco.MjModel, config: PegSceneConfig) -> PegNameMap:
+    # peg freejoint
     peg_jnt_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "peg_freejoint")
     peg_qpos_start = model.jnt_qposadr[peg_jnt_id]
     peg_qvel_start = model.jnt_dofadr[peg_jnt_id]
 
-                 
+    # hand joints (everything except the peg freejoint)
     hand_joint_ids = []
     for jid in range(model.njnt):
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, jid)
@@ -335,14 +336,14 @@ def _resolve_peg_names(model: mujoco.MjModel, config: PegSceneConfig) -> PegName
         hand_qpos_start = hand_qpos_end = 0
         hand_qvel_start = hand_qvel_end = 0
 
-               
+    # actuators
     hand_actuator_ids = list(range(model.nu))
     ctrl_ranges = model.actuator_ctrlrange[: model.nu].copy()
     n_actuators = model.nu
 
     palm_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "rh_palm")
 
-                
+    # fingertips
     fingertip_site_ids = [
         mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, name) for name in FINGERTIP_SITE_NAMES
     ]
@@ -371,7 +372,7 @@ def _resolve_peg_names(model: mujoco.MjModel, config: PegSceneConfig) -> PegName
                 finger_geom_ids_per_finger[finger_idx].add(gid)
                 break
 
-                
+    # peg + hole + table
     table_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "table_geom")
     peg_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "peg")
     peg_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "peg_geom")
@@ -383,7 +384,7 @@ def _resolve_peg_names(model: mujoco.MjModel, config: PegSceneConfig) -> PegName
     hole_pos = np.array([config.hole_offset[0], config.hole_offset[1], config.table_height])
     hole_quat = np.array([1.0, 0.0, 0.0, 0.0])
 
-             
+    # sensors
     finger_touch_adr = []
     for touch_site in FINGER_TOUCH_SITE_NAMES:
         sid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, f"sensor_{touch_site}")

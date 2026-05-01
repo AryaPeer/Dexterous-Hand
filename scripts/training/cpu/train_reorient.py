@@ -21,9 +21,10 @@ from dexterous_hand.curriculum.callbacks import (
 import dexterous_hand.envs  # noqa: F401
 from scripts.training._common import VecNormSyncEvalCallback
 
+
 def make_env(rank: int, seed: int, config: ReorientTrainConfig) -> Callable[[], gym.Env]:  # type: ignore[type-arg]
     def _init() -> gym.Env:  # type: ignore[type-arg]
-        import dexterous_hand.envs  # noqa: F401,F811 - register in subprocess
+        import dexterous_hand.envs  # noqa: F401,F811
 
         env = gym.make(
             "ShadowHandReorient-v0",

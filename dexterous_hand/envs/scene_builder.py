@@ -14,12 +14,13 @@ OBJECT_TYPES: dict[str, tuple[int, list[float]]] = {
     "large_cube": (mujoco.mjtGeom.mjGEOM_BOX, [0.035, 0.035, 0.035]),
 }
 
+# Distal-link body names: first/middle/ring/little/thumb
 FINGERTIP_BODIES = [
-    "rh_ffdistal",         
-    "rh_mfdistal",          
-    "rh_rfdistal",        
-    "rh_lfdistal",          
-    "rh_thdistal",         
+    "rh_ffdistal",
+    "rh_mfdistal",
+    "rh_rfdistal",
+    "rh_lfdistal",
+    "rh_thdistal",
 ]
 
 FINGERTIP_SITE_NAMES = ["fftip", "mftip", "rftip", "lftip", "thtip"]
@@ -35,6 +36,7 @@ FINGERTIP_OFFSETS: dict[str, list[float]] = {
 FINGER_BODY_PREFIXES = ["rh_ff", "rh_mf", "rh_rf", "rh_lf", "rh_th"]
 FINGER_TOUCH_SITE_NAMES = ["ff_touch", "mf_touch", "rf_touch", "lf_touch", "th_touch"]
 
+# Pre-curl applied at reset for table-top tasks (no object pre-grip)
 TABLE_TASK_FLEXION_BIAS: dict[str, float] = {
     "rh_FFJ3": 1.2,
     "rh_MFJ3": 1.2,
@@ -49,6 +51,7 @@ TABLE_TASK_FLEXION_BIAS: dict[str, float] = {
 }
 
 
+# Heavier pre-curl used when an object is teleported into the closed grip
 GRIP_BIAS: dict[str, float] = {
     "rh_FFJ3": 1.5,
     "rh_MFJ3": 1.5,
@@ -67,11 +70,21 @@ GRIP_BIAS: dict[str, float] = {
     "rh_THJ1": 1.4,
 }
 
+
 def apply_flexion_bias(
     qpos: np.ndarray,
     model: mujoco.MjModel,
     bias_map: dict[str, float] = TABLE_TASK_FLEXION_BIAS,
 ) -> np.ndarray:
+    """Clamp `bias_map` joint targets into qpos in place.
+
+    @param qpos: full qpos buffer
+    @type qpos: np.ndarray
+    @param model: compiled mujoco model
+    @type model: mujoco.MjModel
+    @param bias_map: joint name -> desired angle (radians)
+    @type bias_map: dict[str, float]
+    """
 
     for jname, bias in bias_map.items():
         jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, jname)
@@ -82,21 +95,20 @@ def apply_flexion_bias(
         qpos[adr] = float(np.clip(bias, low, high))
     return qpos
 
+
 @dataclass
 class SensorMap:
-
-    finger_touch_adr: list[int]                                             
-    n_sensors: int = 0                           
-                                                                                           
+    finger_touch_adr: list[int]
+    n_sensors: int = 0
     wall_force_adr: list[int] = field(default_factory=list)
 
     @staticmethod
     def empty() -> "SensorMap":
         return SensorMap(finger_touch_adr=[], n_sensors=0, wall_force_adr=[])
 
+
 @dataclass
 class NameMap:
-
     hand_joint_ids: list[int]
     hand_actuator_ids: list[int]
     hand_qpos_start: int
@@ -104,7 +116,7 @@ class NameMap:
     hand_qvel_start: int
     hand_qvel_end: int
     n_actuators: int
-    ctrl_ranges: np.ndarray                    
+    ctrl_ranges: np.ndarray
 
     palm_body_id: int
     fingertip_site_ids: list[int]
@@ -117,9 +129,17 @@ class NameMap:
     table_geom_id: int
     sensor_map: SensorMap = field(default_factory=SensorMap.empty)
 
+
 def build_scene(
     config: SceneConfig | None = None,
 ) -> tuple[mujoco.MjModel, mujoco.MjData, NameMap]:
+    """Compile the table+hand+object grasp scene.
+
+    @param config: scene physics + layout
+    @type config: SceneConfig | None
+    @return: (model, data, name_map)
+    @rtype: tuple[mujoco.MjModel, mujoco.MjData, NameMap]
+    """
 
     if config is None:
         config = SceneConfig()
@@ -230,7 +250,7 @@ def build_scene(
             rgba=[1.0, 0.0, 0.0, 1.0],
         )
 
-                                                                       
+    # touch sensor sites: spheres co-located with the fingertip
     for body_name, touch_site in zip(FINGERTIP_BODIES, FINGER_TOUCH_SITE_NAMES, strict=True):
         body = spec.body(body_name)
         offset = FINGERTIP_OFFSETS[body_name]
@@ -274,14 +294,14 @@ def build_scene(
 
     return model, data, name_map
 
-def _resolve_names(model: mujoco.MjModel, spec: mujoco.MjSpec) -> NameMap:
 
-                  
+def _resolve_names(model: mujoco.MjModel, spec: mujoco.MjSpec) -> NameMap:
+    # object freejoint
     obj_jnt_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "object_freejoint")
     obj_qpos_start = model.jnt_qposadr[obj_jnt_id]
     obj_qvel_start = model.jnt_dofadr[obj_jnt_id]
 
-                 
+    # hand joints (everything except the object freejoint)
     hand_joint_ids = []
     for jid in range(model.njnt):
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, jid)
@@ -296,14 +316,14 @@ def _resolve_names(model: mujoco.MjModel, spec: mujoco.MjSpec) -> NameMap:
         hand_qpos_start = hand_qpos_end = 0
         hand_qvel_start = hand_qvel_end = 0
 
-               
+    # actuators
     hand_actuator_ids = list(range(model.nu))
     ctrl_ranges = model.actuator_ctrlrange[: model.nu].copy()
     n_actuators = model.nu
 
     palm_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "rh_palm")
 
-                
+    # fingertips
     fingertip_site_ids = [
         mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, name) for name in FINGERTIP_SITE_NAMES
     ]
@@ -332,12 +352,12 @@ def _resolve_names(model: mujoco.MjModel, spec: mujoco.MjSpec) -> NameMap:
                 finger_geom_ids_per_finger[finger_idx].add(gid)
                 break
 
-                    
+    # object + table
     object_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "object")
     object_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "object_geom")
     table_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "table_geom")
 
-             
+    # sensors
     finger_touch_adr = []
     for touch_site in FINGER_TOUCH_SITE_NAMES:
         sid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, f"sensor_{touch_site}")
@@ -366,13 +386,13 @@ def _resolve_names(model: mujoco.MjModel, spec: mujoco.MjSpec) -> NameMap:
         sensor_map=sensor_map,
     )
 
-def get_object_half_height(geom_type: int, geom_size: list[float]) -> float:
 
+def get_object_half_height(geom_type: int, geom_size: list[float]) -> float:
     if geom_type == mujoco.mjtGeom.mjGEOM_BOX:
         return geom_size[2]
     elif geom_type == mujoco.mjtGeom.mjGEOM_SPHERE:
         return geom_size[0]
     elif geom_type == mujoco.mjtGeom.mjGEOM_CYLINDER:
-        return geom_size[1]               
+        return geom_size[1]  # cylinder size = (radius, half_length)
     else:
-        return 0.03                                               
+        return 0.03  # safe default for unknown primitives

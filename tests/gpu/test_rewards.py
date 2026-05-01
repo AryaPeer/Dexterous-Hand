@@ -19,6 +19,7 @@ from dexterous_hand.rewards.gpu.reorient_reward import (  # noqa: E402
     reorient_reward,
 )
 
+
 def _grasp_kwargs(cfg: RewardConfig, table_height: float) -> dict:
     return dict(
         finger_positions=jnp.zeros((5, 3)),
