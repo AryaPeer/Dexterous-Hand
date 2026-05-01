@@ -43,7 +43,7 @@ class ReorientRewardCalculator:
         num_fingers_in_contact: int,
         actions: np.ndarray,
         previous_actions: np.ndarray,
-        dropped: bool,
+        drop_factor: float,
     ) -> tuple[float, dict[str, float], bool]:
         """Total reorient reward + target-reached flag.
 
@@ -63,8 +63,11 @@ class ReorientRewardCalculator:
         @type actions: np.ndarray
         @param previous_actions: (22,) last step's actions
         @type previous_actions: np.ndarray
-        @param dropped: whether the cube has fallen below the table this step
-        @type dropped: bool
+        @param drop_factor: smooth 0..1 height-gated drop multiplier (1 at/below
+            drop threshold, 0 when cube is at safe height, smoothstep ramp in
+            between). Replaces the H2 binary cliff so the policy gets gradient
+            warning before going over.
+        @type drop_factor: float
         @return: (total, info, target_reached) reward sum, breakdown, and success flag
         @rtype: tuple[float, dict[str, float], bool]
         """
@@ -97,7 +100,7 @@ class ReorientRewardCalculator:
             self._success_steps = 0
         target_reached = self._success_steps >= self.success_hold_steps
 
-        cube_drop = self.drop_penalty_value if dropped else 0.0
+        cube_drop = self.drop_penalty_value * float(drop_factor)
         info["reward/cube_drop"] = cube_drop
 
         action_penalty = -0.0002 * float(np.sum(actions**2))

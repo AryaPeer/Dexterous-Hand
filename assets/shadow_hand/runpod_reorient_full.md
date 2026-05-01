@@ -2,9 +2,10 @@
 
 Targets the 180° reorient stage, the IsaacGymEnvs `ShadowHand` reference
 benchmark target. The cube visibly flips over — visually unmistakable as
-multi-finger coordination. The default curriculum tops out at 180° (no
-SO(3) stage); full SO(3) is reachable later by re-adding the stage and
-resuming from the saved checkpoint — see §11.
+multi-finger coordination. **The 180° goal is the end-state for this
+project; we are not extending to full SO(3).** §11 documents the round-9
+resume path that fixes the H2 drop-cliff and lets the in-flight 200 M
+run converge on a stable 180° policy.
 
 Reorient is the only task already verified clean (3 M sanity on
 2026-04-26 hit no NaN / no `CUDA_ERROR_ILLEGAL_ADDRESS`). Ship the
@@ -208,49 +209,82 @@ you may need to reuse the one from a prior completed run on the same
 config or restart from scratch. Checkpoint recovery is only worth the
 hassle past ~50 M.
 
-## 11. Extending past 180°
+## 11. Round-9 H2 resume — recover a stable 180° policy
 
-The default curriculum stops at 180°. If the 200 M run goes well and
-you later decide you want full SO(3):
+**Why this section exists.** The in-flight 200 M run hit `success_steps`
+≈ 0.135 around 72 M (early stage 2), then partially regressed by 121 M
+to ~0.083 with `angular_distance` drifting from 1.05 → 1.40 rad (~80°).
+PPO health is pristine throughout (`approx_kl` 0.006, `value_loss` 0.07,
+`explained_variance` 0.987, `nan_rate` 0), so this is not an optimizer
+failure — it's a reward-landscape failure mode flagged in `gpu_audit.md`
+as **H2: drop-penalty cliff**. The reward function had a binary
+`where(dropped, drop_penalty=-20, 0)` term. As stage 2 introduced
+180° goals at 60 M, aggressive rotations occasionally dropped the cube,
+each drop fired a -100 reward (after 5× weight), and the policy
+converged to a "hold cube safely, rotate slowly" local minimum that
+minimizes drop frequency at the cost of solving the goal.
 
-1. **Re-add the SO(3) stage** to `MjxReorientTrainConfig.curriculum_stages`
-   in `dexterous_hand/config.py`:
+**What the round-9 fix does.** `dexterous_hand/rewards/{cpu,gpu}/reorient_reward.py`
+now takes a continuous `drop_factor` instead of a binary `dropped` flag.
+The env (`envs/{cpu,gpu}/reorient_env.py`) computes a clamped smoothstep
+over the `drop_height_offset` margin: 0 when cube is at safe palm height,
+1 when it crosses the drop threshold, smooth ramp in between. The reward
+function applies it as a direct multiplier on `drop_penalty`. Net effect:
+the policy now receives **gradient warning** as the cube descends toward
+the drop boundary, instead of a binary impulse only at the cliff. This
+breaks the "hover safely" minimum because the policy can lean back from
+the edge without paying the full cliff cost — the gradient says "you're
+getting low, climb a bit" rather than "cube is fine until it's not".
 
-   ```python
-   curriculum_stages: list[tuple[int, float]] = field(
-       default_factory=lambda: [
-           (0, math.radians(30)),
-           (20_000_000, math.radians(90)),
-           (60_000_000, math.radians(180)),
-           (120_000_000, math.pi),
-       ]
-   )
+The binary `dropped` flag is still used inside the env for episode
+termination (separate from reward shaping). Tests `tests/cpu/test_rewards.py`,
+`tests/gpu/test_rewards.py`, and `tests/test_reward_parity.py` were
+updated to exercise the smooth path; all 153 tests green.
+
+**Resume procedure.** Wait for the 200 M run to finish naturally (don't
+kill — the policy state is recoverable, the gradient signal just
+shifted). Then:
+
+1. Confirm the round-9 commit is live on the pod's branch:
    ```
+   cd ~/dexterous_hand && git pull && uv run pytest -q
+   ```
+   Expect 153 passed, 3 skipped.
 
-2. **Resume from the saved checkpoint** via the wired CLI:
-
+2. Resume from the saved 200 M checkpoint:
    ```
    uv run python main.py resume-reorient-mjx \
        --model-path /workspace/runs/reorient_mjx_768env_42/final_model.zip \
        --vec-normalize-path /workspace/runs/reorient_mjx_768env_42/vec_normalize.pkl \
-       --additional-timesteps 300000000 \
+       --additional-timesteps 50000000 \
        --num-envs 768 \
        --seed 42
    ```
 
-   The resume script always uses `reset_num_timesteps=False` and reloads
-   the existing `vec_normalize.pkl` so the curriculum sees cumulative
-   steps and the obs running stats are preserved. With 300 M additional
-   on top of the 200 M already trained, the SO(3) stage (base threshold
-   120 M) enters at 200 M cumulative — i.e. immediately on resume — and
-   gets the full 300 M of fresh budget.
+   The resume uses `reset_num_timesteps=False` (cumulative timesteps
+   preserved) and `VecNormalize.load` (obs running stats preserved).
+   Curriculum is anchored at the original schedule; cumulative timesteps
+   start at 200 M, so the resume is pure stage-2 horizon at 180°.
 
-3. Or relaunch from scratch with the 4-stage curriculum and
-   `--total-timesteps 500000000 --curriculum-reference-timesteps 500000000`.
-   That's the "insurance" path; with 200 M of prior 180° learning in
-   your back pocket, the resume route is cheaper and de-risks the bet.
+**Important reload caveat.** The reward function changed, so the policy's
+value function will need a few M timesteps to refit. Expect:
+- `value_loss` to spike briefly (5-10× pre-resume baseline) then settle
+- `explained_variance` to drop transiently (down to ~0.7) then recover
+- `success_steps` and `angular_distance` may dip for the first ~5 M
+  before improving as the policy escapes the "hover" minimum
 
-Cost path 180° → SO(3) via resume: ~$80 (this run) + ~$120 (300 M
-resume) = ~$200, vs. ~$200 for a single 500 M run from scratch. Same
-money, but split lets you stop after 180° if the result is already
-good enough.
+If `success_steps` doesn't recover above the pre-resume 0.083 by 20 M
+of resume (= 220 M cumulative), kill — the H2 fix wasn't enough and
+round-10 needs additional intervention (likely curriculum relaxation).
+
+**Pass bar at 250 M cumulative (= 50 M resume completed):**
+- `success_steps` ≥ 0.20 (the original 200 M target)
+- `angular_distance` ≤ 1.0 rad sustained
+- `eval/success_rate` > 0.10
+
+Cost: ~$50 for the 50 M resume on 5090. Total reorient program: ~$80
+(in-flight 200 M) + ~$50 (round-9 resume) = ~$130.
+
+**No SO(3) extension.** The 180° policy is the deliverable; do not
+re-add the `(120M, math.pi)` stage to `curriculum_stages`. If the round-9
+resume hits the pass bar, ship the policy and end the program.

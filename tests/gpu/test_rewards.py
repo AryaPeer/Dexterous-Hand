@@ -135,7 +135,7 @@ class TestReorientJax:
             finger_contact_mask=jnp.array([True, True, True, False, False]),
             actions=jnp.zeros(22),
             previous_actions=jnp.zeros(22),
-            dropped=jnp.array(False),
+            drop_factor=jnp.array(0.0),
             weights=cfg.weights,
             success_threshold=cfg.success_threshold,
             success_hold_steps=cfg.success_hold_steps,
@@ -162,7 +162,7 @@ class TestReorientJax:
             finger_contact_mask,
             actions,
             previous_actions,
-            dropped,
+            drop_factor,
         ):
             return reorient_reward(
                 state=state,
@@ -174,7 +174,7 @@ class TestReorientJax:
                 finger_contact_mask=finger_contact_mask,
                 actions=actions,
                 previous_actions=previous_actions,
-                dropped=dropped,
+                drop_factor=drop_factor,
                 weights=cfg.weights,
                 success_threshold=cfg.success_threshold,
                 success_hold_steps=cfg.success_hold_steps,
@@ -198,7 +198,7 @@ class TestReorientJax:
             jnp.array([True, True, True, False, False]),
             jnp.zeros(22),
             jnp.zeros(22),
-            jnp.array(False),
+            jnp.array(0.0),
         )
         assert np.isfinite(float(total))
         assert float(info["metrics/angular_distance"]) < 1e-5

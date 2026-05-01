@@ -282,7 +282,7 @@ class TestReorientReward:
             num_fingers_in_contact=3,
             actions=ZERO_ACTIONS,
             previous_actions=ZERO_ACTIONS,
-            dropped=False,
+            drop_factor=0.0,
         )
         defaults.update(overrides)
         return defaults
@@ -358,9 +358,16 @@ class TestReorientReward:
         assert target_reached is False
 
     def test_drop_penalty(self):
+        # Smooth H2 fix: drop_factor is the continuous height-gated multiplier.
+        # drop_factor=1.0 (cube at/below threshold) → full drop_penalty.
+        # drop_factor=0.5 (halfway) → half drop_penalty.
         calc = self.make_calc()
-        _, info, _ = calc.compute(**self._default_kwargs(dropped=True))
-        assert_allclose(info["reward/cube_drop"], -20.0)
+        _, info_full, _ = calc.compute(**self._default_kwargs(drop_factor=1.0))
+        assert_allclose(info_full["reward/cube_drop"], -20.0)
+        _, info_half, _ = calc.compute(**self._default_kwargs(drop_factor=0.5))
+        assert_allclose(info_half["reward/cube_drop"], -10.0)
+        _, info_safe, _ = calc.compute(**self._default_kwargs(drop_factor=0.0))
+        assert_allclose(info_safe["reward/cube_drop"], 0.0)
 
     def test_angular_progress_zero_on_first_step(self):
         calc = self.make_calc()

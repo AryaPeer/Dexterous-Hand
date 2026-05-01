@@ -220,7 +220,10 @@ class TestReorientParity:
                 mask[rng.choice(5, size=n_contacts, replace=False)] = True
             actions = rng.uniform(-1, 1, size=20)
             prev_actions = rng.uniform(-1, 1, size=20)
-            dropped = bool(rng.integers(0, 2))
+            # Smooth H2 fix: drop_factor is now a continuous float in [0, 1].
+            # Sample uniformly to exercise the smooth path; the cpu/gpu reward
+            # functions both apply it as a direct multiplier on drop_penalty.
+            drop_factor = float(rng.uniform(0.0, 1.0))
             initial_cube_pos = rng.uniform(-0.05, 0.05, size=3)
 
             np_calc = ReorientRewardCalculator(cfg, initial_cube_pos=initial_cube_pos)
@@ -233,7 +236,7 @@ class TestReorientParity:
                 num_fingers_in_contact=n_contacts,
                 actions=actions,
                 previous_actions=prev_actions,
-                dropped=dropped,
+                drop_factor=drop_factor,
             )
 
             jax_state = init_reorient_reward_state(jnp.asarray(initial_cube_pos))
@@ -247,7 +250,7 @@ class TestReorientParity:
                 finger_contact_mask=jnp.asarray(mask),
                 actions=jnp.asarray(actions),
                 previous_actions=jnp.asarray(prev_actions),
-                dropped=jnp.asarray(dropped),
+                drop_factor=jnp.asarray(drop_factor),
                 weights=cfg.weights,
                 success_threshold=cfg.success_threshold,
                 success_hold_steps=cfg.success_hold_steps,

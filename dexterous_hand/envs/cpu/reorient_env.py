@@ -170,7 +170,15 @@ class ShadowHandReorientEnv(gym.Env):
             self.nm.cube_geom_id,
         )
 
-        dropped = cube_pos[2] < self._palm_z - self.reward_config.drop_height_offset
+        drop_offset = self.reward_config.drop_height_offset
+        threshold_z = self._palm_z - drop_offset
+        dropped = cube_pos[2] < threshold_z
+        # H2 smooth drop factor: clamped smoothstep over the drop_height_offset
+        # margin. 0 at/above palm, 1 at/below threshold, smooth ramp in between.
+        # Reward function uses this as a continuous multiplier; binary `dropped`
+        # is still used below for episode termination.
+        safety = float(np.clip((cube_pos[2] - threshold_z) / drop_offset, 0.0, 1.0))
+        drop_factor = 1.0 - (3.0 * safety**2 - 2.0 * safety**3)
 
         reward, reward_info, target_reached = self.reward_calculator.compute(
             cube_quat=cube_quat,
@@ -181,7 +189,7 @@ class ShadowHandReorientEnv(gym.Env):
             num_fingers_in_contact=num_contacts,
             actions=action.astype(np.float64),
             previous_actions=self._previous_actions,
-            dropped=dropped,
+            drop_factor=drop_factor,
         )
 
         self._previous_actions = action.astype(np.float64).copy()

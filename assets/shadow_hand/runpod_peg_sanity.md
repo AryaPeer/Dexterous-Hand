@@ -7,11 +7,14 @@ contacts collapsed to 0.11 — classic auto-temperature divergence under
 sparse reward. PPO (no auto-α, fixed `ent_coef=0.01`) is what already
 works on grasp and reorient on this codebase.
 
-This sanity is one-and-done before the 100 M full run — it verifies
+This sanity is one-and-done before the 150 M full run — it verifies
 the new algorithm/env combination is healthy. The reward function is
 unchanged from round-8 (round-7 gates retained: `insertion_drive` has
 all four gates, `complete` has all five — both random-policy probe
-verified).
+verified). 150 M is the post-sanity-analysis budget (bumped from
+100 M after the sanity result + literature review showed 24-DOF
+dexterous peg insertion needs more episode-volume than the original
+estimate).
 
 ## 1. GPU choice
 
@@ -154,8 +157,8 @@ problems, not learning convergence.
 
 ## 9. Pass / fail decision tree
 
-**All pass:** ship the 100 M full run. Same env count (256) is fine if
-you want to keep cost under $5; bump to 768 envs for ~$28 / ~28 hr.
+**All pass:** ship the 150 M full run on 768 envs (~42 hr / ~$42 on
+5090). Full launch protocol in `runpod_peg_full.md`.
 
 **PPO health pass, task signal slow** (contacts 0.5–1.0, no stage
 advance): bump exploration. Edit `MjxPegTrainConfig.ent_coef` from 0.01
@@ -191,32 +194,42 @@ amplify the leak into divergence.
 ## 11. After sanity
 
 If pass: read this doc's §9 "All pass" line, kill the pod, launch the
-full 100 M run. Default config now produces a working 100 M command:
+full 150 M run per `runpod_peg_full.md`. Default config produces it
+directly:
 
 ```
 uv run python main.py train-peg-mjx \
     --num-envs 768 \
-    --total-timesteps 100000000
+    --total-timesteps 150000000
 ```
 
 (or just `uv run python main.py train-peg-mjx` — the dataclass defaults
 match this exactly).
 
-Same `PREALLOCATE=true` + `MEM_FRACTION=0.7` env vars; full run takes
-~40 hr / ~$40 on 5090 at 768 envs. With the bumped curriculum reference
-(100 M), the curriculum stages stay literal at [0, 8 M, 16 M, 24 M,
-32 M], leaving the hardest stage (clearance=0.001) **68 M** of training
-budget — comparable to reorient stage 2's 140 M for the comparably-hard
-180° target.
+Curriculum stage layout under 1.5× scaling
+(`scale_stage_starts(stages, total=150M, ref=100M)`):
 
-## 12. Extending past 100 M (resume from final_model)
+| stage | start  | clearance | p_pre_grasped | budget |
+| ----- | ------ | --------- | ------------- | ------ |
+| 0     | 0      | 0.004     | 1.0           | 12 M   |
+| 1     | 12 M   | 0.004     | 0.7           | 12 M   |
+| 2     | 24 M   | 0.003     | 0.5           | 12 M   |
+| 3     | 36 M   | 0.002     | 0.3           | 12 M   |
+| 4     | 48 M   | 0.001     | 0.2           | **102 M** |
 
-If the 100 M full run finishes and the policy is close — eval success
+Stage 4 (the hardest — 1 mm clearance with 80 % chance of starting
+non-grasped) gets 102 M of horizon, comparable to reorient stage 2's
+140 M for the comparably-hard 180° target.
+
+## 12. Extending past 150 M (resume from final_model)
+
+If the 150 M full run finishes and the policy is close — eval success
 rate > 0 but below target, or reward still climbing at the final
 checkpoint — you can resume rather than retrain. Same mechanism reorient
-uses for SO(3) extension (`runpod_reorient_full.md` §11).
+uses for SO(3) extension (`runpod_reorient_full.md` §11). Full resume
+protocol in `runpod_peg_full.md` §11.
 
-A wired CLI is provided. To add 50 M on top of the existing 100 M:
+Quick form, to add 50 M on top of the existing 150 M:
 
 ```
 uv run python main.py resume-peg-mjx \
@@ -227,18 +240,5 @@ uv run python main.py resume-peg-mjx \
     --seed 42
 ```
 
-Output lands in `<input_dir>_resumed/` by default (override with
-`--output-dir`). Three things that matter under the hood:
-
-1. **`reset_num_timesteps=False`** — keeps `model.num_timesteps` cumulative
-   so the curriculum callback fires correctly. Without this, the curriculum
-   re-enters stage 0 and you re-train through easy stages you already passed.
-2. **Reload `vec_normalize.pkl`** via `VecNormalize.load`. Without this,
-   observation running stats reset and the policy sees a shifted input
-   distribution — costs 5-10 M timesteps of re-stabilization.
-3. **Re-supply curriculum callback.** Loaded models do not auto-restore
-   callbacks, only optimizer/network state. If you skip this the env
-   stays pinned to the final loaded stage with no further advance.
-
 Cost: 50 M resume ≈ 20 hr / $20 on 5090. Strictly cheaper than retraining
-150 M from scratch ($60).
+200 M from scratch ($56).

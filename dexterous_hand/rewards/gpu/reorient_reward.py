@@ -32,7 +32,7 @@ def reorient_reward(
     finger_contact_mask: jnp.ndarray,
     actions: jnp.ndarray,
     previous_actions: jnp.ndarray,
-    dropped: jnp.ndarray,
+    drop_factor: jnp.ndarray,
     weights: ReorientRewardWeights,
     success_threshold: float,
     success_hold_steps: int,
@@ -64,8 +64,10 @@ def reorient_reward(
     @type actions: jnp.ndarray
     @param previous_actions: (n_act,) prev step action (currently unused)
     @type previous_actions: jnp.ndarray
-    @param dropped: scalar bool — cube fell below the palm this step
-    @type dropped: jnp.ndarray
+    @param drop_factor: scalar float in [0, 1] — smooth height-gated drop
+        multiplier. 0 when cube is at safe height, ramps via clamped smoothstep
+        to 1 at/below the drop threshold. Replaces the H2 binary cliff.
+    @type drop_factor: jnp.ndarray
     @return: (total, next_state, info, target_reached)
     @rtype: tuple[jnp.ndarray, ReorientRewardState, dict[str, jnp.ndarray], jnp.ndarray]
     """
@@ -92,7 +94,7 @@ def reorient_reward(
     )
     target_reached = new_success_steps >= success_hold_steps
 
-    cube_drop = jnp.where(dropped, drop_penalty_value, 0.0)
+    cube_drop = drop_penalty_value * drop_factor
 
     action_penalty = -0.0002 * jnp.sum(actions**2)
 

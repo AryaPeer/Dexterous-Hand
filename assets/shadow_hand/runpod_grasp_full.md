@@ -234,6 +234,6 @@ round-8 program looks like:
 | ----------------------- | ------ |
 | grasp full (this doc)   | ~$28   |
 | peg sanity              | ~$1    |
-| peg full 100 M (post-sanity) | ~$40 |
+| peg full 150 M (post-sanity, see `runpod_peg_full.md`) | ~$42 |
 | reorient 200 M (in flight) | ~$80 |
-| **program total**       | **~$149** |
+| **program total**       | **~$151** |

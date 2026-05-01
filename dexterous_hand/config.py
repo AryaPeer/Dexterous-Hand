@@ -299,7 +299,7 @@ def _mjx_peg_reward_config() -> PegRewardConfig:
 @dataclass
 class MjxPegTrainConfig:
     num_envs: int = 768
-    total_timesteps: int = 100_000_000
+    total_timesteps: int = 150_000_000
     learning_rate: float = 3e-4
     batch_size: int = 4096
     n_steps_per_env: int = 128

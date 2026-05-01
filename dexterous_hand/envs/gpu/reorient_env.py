@@ -216,7 +216,15 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
 
         _, contact_mask = get_finger_touch_from_sensors(mjx_data.sensordata, self._finger_touch_adr)
 
-        dropped = cube_pos[2] < env_state.palm_z - self.reward_config.drop_height_offset
+        drop_offset = self.reward_config.drop_height_offset
+        threshold_z = env_state.palm_z - drop_offset
+        dropped = cube_pos[2] < threshold_z
+        # H2 smooth drop factor: clamped smoothstep over the drop_height_offset
+        # margin. 0 at/above palm, 1 at/below threshold, smooth ramp in between.
+        # Reward function uses this as a continuous multiplier; binary `dropped`
+        # is still used below for episode termination.
+        safety = jnp.clip((cube_pos[2] - threshold_z) / drop_offset, 0.0, 1.0)
+        drop_factor = 1.0 - (3.0 * safety**2 - 2.0 * safety**3)
 
         total, new_reward_state, info, target_reached = reorient_reward(
             state=env_state.reward_state,
@@ -228,7 +236,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             finger_contact_mask=contact_mask,
             actions=smoothed,
             previous_actions=env_state.previous_actions,
-            dropped=dropped,
+            drop_factor=drop_factor,
             weights=self._reward_weights,
             success_threshold=self.reward_config.success_threshold,
             success_hold_steps=self.reward_config.success_hold_steps,
