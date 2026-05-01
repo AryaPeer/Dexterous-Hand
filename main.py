@@ -12,7 +12,7 @@ Usage: python main.py <command> [options]
 
   train-grasp-mjx     Train grasping on MJX (SBX PPO)
   train-reorient-mjx  Train reorientation on MJX (SBX PPO)
-  train-peg-mjx       Train peg-in-hole on MJX (SBX SAC)
+  train-peg-mjx       Train peg-in-hole on MJX (SBX PPO)
   evaluate-grasp-mjx     Evaluate SBX grasp model
   evaluate-reorient-mjx  Evaluate SBX reorientation model
   evaluate-peg-mjx       Evaluate SBX peg model

@@ -300,14 +300,15 @@ class MjxPegTrainConfig:
     num_envs: int = 512
     total_timesteps: int = 60_000_000
     learning_rate: float = 3e-4
-    batch_size: int = 1024
-    buffer_size: int = 1_000_000
-    learning_starts: int = 50_000
-    tau: float = 0.005
+    batch_size: int = 4096
+    n_steps_per_env: int = 128
+    n_epochs: int = 10
     gamma: float = 0.997
-    train_freq: int = 1
-    gradient_steps: int = 128
-    ent_coef: float | str = 0.1
+    gae_lambda: float = 0.95
+    clip_range: float = 0.2
+    ent_coef: float = 0.01
+    vf_coef: float = 0.5
+    max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
     activation: str = "elu"
     seed: int = 42

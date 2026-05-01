@@ -4,7 +4,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import flax.linen as nn
-from sbx import SAC
+from sbx import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor, VecNormalize
 import wandb
@@ -29,6 +29,15 @@ def train(config: MjxPegTrainConfig) -> None:
 
     run_dir = Path("runs") / f"peg_mjx_{config.num_envs}env_{config.seed}"
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    rollout_size = config.num_envs * config.n_steps_per_env
+    if config.batch_size > rollout_size:
+        new_bs = max(rollout_size // 4, 64)
+        print(
+            f"WARNING: batch_size {config.batch_size} > rollout_size {rollout_size}. "
+            f"Auto-resized to {new_bs}."
+        )
+        config.batch_size = new_bs
 
     curriculum_stages = scale_stage_starts(
         stages=config.curriculum_stages,
@@ -62,20 +71,21 @@ def train(config: MjxPegTrainConfig) -> None:
 
     activation_fn = {"elu": nn.elu, "relu": nn.relu, "tanh": nn.tanh}[config.activation]
 
-    model = SAC(
+    model = PPO(
         "MlpPolicy",
         vec_env,
         learning_rate=config.learning_rate,
+        n_steps=config.n_steps_per_env,
         batch_size=config.batch_size,
-        buffer_size=config.buffer_size,
-        learning_starts=config.learning_starts,
-        tau=config.tau,
+        n_epochs=config.n_epochs,
         gamma=config.gamma,
-        train_freq=config.train_freq,
-        gradient_steps=config.gradient_steps,
+        gae_lambda=config.gae_lambda,
+        clip_range=config.clip_range,
         ent_coef=config.ent_coef,
+        vf_coef=config.vf_coef,
+        max_grad_norm=config.max_grad_norm,
         policy_kwargs={
-            "net_arch": dict(pi=config.net_arch.copy(), qf=config.net_arch.copy()),
+            "net_arch": dict(pi=config.net_arch.copy(), vf=config.net_arch.copy()),
             "activation_fn": activation_fn,
         },
         verbose=1,
@@ -134,11 +144,12 @@ def train(config: MjxPegTrainConfig) -> None:
     eval_env.close()
 
 def parse_args() -> MjxPegTrainConfig:
-    parser = argparse.ArgumentParser(description="Train Shadow Hand peg-in-hole (MJX + SBX SAC)")
+    parser = argparse.ArgumentParser(description="Train Shadow Hand peg-in-hole (MJX + SBX PPO)")
     parser.add_argument("--num-envs", type=int, default=2048)
     parser.add_argument("--total-timesteps", type=int, default=60_000_000)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
-    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--batch-size", type=int, default=4096)
+    parser.add_argument("--n-steps-per-env", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -147,6 +158,7 @@ def parse_args() -> MjxPegTrainConfig:
         total_timesteps=args.total_timesteps,
         learning_rate=args.learning_rate,
         batch_size=args.batch_size,
+        n_steps_per_env=args.n_steps_per_env,
         seed=args.seed,
     )
 
