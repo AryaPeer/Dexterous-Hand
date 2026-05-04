@@ -64,7 +64,7 @@ class TrainConfig:
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.01
+    ent_coef: float = 0.0
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
@@ -124,7 +124,7 @@ class ReorientTrainConfig:
     gamma: float = 0.998
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.01
+    ent_coef: float = 0.0
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
@@ -243,7 +243,7 @@ class MjxGraspTrainConfig:
     gamma: float = 0.995
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.01
+    ent_coef: float = 0.0
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
@@ -269,7 +269,7 @@ class MjxReorientTrainConfig:
     gamma: float = 0.998
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.01
+    ent_coef: float = 0.0
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])
@@ -307,7 +307,7 @@ class MjxPegTrainConfig:
     gamma: float = 0.997
     gae_lambda: float = 0.95
     clip_range: float = 0.2
-    ent_coef: float = 0.01
+    ent_coef: float = 0.0
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     net_arch: list[int] = field(default_factory=lambda: [256, 256, 256])

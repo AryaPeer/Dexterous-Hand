@@ -205,6 +205,7 @@ class ShadowHandReorientEnv(gym.Env):
         obs = self._get_obs()
         info = {
             "targets_reached": self._targets_reached,
+            "is_success": bool(target_reached),
             **reward_info,
         }
         info["reward/total"] = float(reward)

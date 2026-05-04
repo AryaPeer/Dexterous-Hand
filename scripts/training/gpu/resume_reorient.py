@@ -60,6 +60,7 @@ def train(args: SimpleNamespace) -> None:
     )
 
     model = PPO.load(str(model_path), env=vec_env)
+    model.target_kl = 0.02
 
     setup_sb3_logger(model, run_dir)
 
@@ -84,6 +85,7 @@ def train(args: SimpleNamespace) -> None:
         CheckpointCallback(
             save_freq=max(500_000 // config.num_envs, 1),
             save_path=str(run_dir / "checkpoints"),
+            save_vecnormalize=True,
         ),
     ]
 

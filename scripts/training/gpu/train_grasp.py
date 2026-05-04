@@ -68,6 +68,7 @@ def train(config: MjxGraspTrainConfig) -> None:
         ent_coef=config.ent_coef,
         vf_coef=config.vf_coef,
         max_grad_norm=config.max_grad_norm,
+        target_kl=0.02,
         policy_kwargs={
             "net_arch": dict(pi=config.net_arch.copy(), vf=config.net_arch.copy()),
             "activation_fn": activation_fn,
@@ -98,6 +99,7 @@ def train(config: MjxGraspTrainConfig) -> None:
         CheckpointCallback(
             save_freq=max(500_000 // config.num_envs, 1),
             save_path=str(run_dir / "checkpoints"),
+            save_vecnormalize=True,
         ),
         WandbCallback(
             model_save_path=str(run_dir),

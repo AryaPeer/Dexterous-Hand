@@ -226,7 +226,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
         safety = jnp.clip((cube_pos[2] - threshold_z) / drop_offset, 0.0, 1.0)
         drop_factor = 1.0 - (3.0 * safety**2 - 2.0 * safety**3)
 
-        total, new_reward_state, info, target_reached = reorient_reward(
+        total, new_reward_state, reward_info, target_reached = reorient_reward(
             state=env_state.reward_state,
             cube_quat=cube_quat,
             target_quat=env_state.target_quat,
@@ -248,6 +248,7 @@ class ShadowHandReorientMjxEnv(MjxVecEnv):
             tracking_k=self.reward_config.tracking_k,
             orientation_contact_alpha=self.reward_config.orientation_contact_alpha,
         )
+        info = {**reward_info, "is_success": target_reached.astype(jnp.float32)}
 
         new_key, subkey = jax.random.split(env_state.key)
         min_angle_floor = jnp.minimum(
