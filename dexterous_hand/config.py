@@ -253,6 +253,12 @@ class MjxGraspTrainConfig:
     norm_reward: bool = False
     obs_noise_std: float = 0.005
     max_episode_steps: int = 200
+    # log_std clamp on the Gaussian policy. Default: σ ∈ [0.05, 1.0].
+    # Init at the ceiling so PG can only push σ down — see
+    # dexterous_hand/policies/clamped_actor.py.
+    log_std_init: float = 0.0
+    log_std_min: float = -3.0
+    log_std_max: float = 0.0
     scene_config: SceneConfig = field(default_factory=SceneConfig)
     reward_config: RewardConfig = field(default_factory=RewardConfig)
     dr: DomainRandomization = field(default_factory=DomainRandomization)
@@ -279,6 +285,9 @@ class MjxReorientTrainConfig:
     norm_reward: bool = True
     obs_noise_std: float = 0.005
     max_episode_steps: int = 400
+    log_std_init: float = 0.0
+    log_std_min: float = -3.0
+    log_std_max: float = 0.0
     scene_config: ReorientSceneConfig = field(default_factory=ReorientSceneConfig)
     reward_config: ReorientRewardConfig = field(default_factory=ReorientRewardConfig)
     dr: DomainRandomization = field(default_factory=DomainRandomization)
@@ -317,6 +326,9 @@ class MjxPegTrainConfig:
     norm_reward: bool = False
     obs_noise_std: float = 0.005
     max_episode_steps: int = 500
+    log_std_init: float = 0.0
+    log_std_min: float = -3.0
+    log_std_max: float = 0.0
     scene_config: PegSceneConfig = field(default_factory=PegSceneConfig)
     reward_config: PegRewardConfig = field(default_factory=_mjx_peg_reward_config)
     dr: DomainRandomization = field(default_factory=lambda: DomainRandomization(enabled=False))

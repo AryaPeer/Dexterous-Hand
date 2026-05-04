@@ -1,6 +1,9 @@
 import math
 
 from dexterous_hand.config import (
+    MjxGraspTrainConfig,
+    MjxPegTrainConfig,
+    MjxReorientTrainConfig,
     PegRewardConfig,
     PegRewardWeights,
     PegSceneConfig,
@@ -113,6 +116,16 @@ class TestConfigDefaults:
             assert len(stage) == 3
             step, clearance, p = stage
             assert 0.0 <= p <= 1.0
+
+    def test_mjx_log_std_clamp_defaults(self):
+        # Bounds must be valid (min < max) and the init must sit inside the
+        # range; the clamped Actor only blocks the runaway if the policy
+        # actually starts within the allowed range.
+        for cls in (MjxGraspTrainConfig, MjxReorientTrainConfig, MjxPegTrainConfig):
+            c = cls()
+            assert c.log_std_min < c.log_std_max
+            assert c.log_std_min <= c.log_std_init <= c.log_std_max
+            assert c.log_std_max == 0.0
 
     def test_all_configs_instantiate(self):
 

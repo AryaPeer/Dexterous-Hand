@@ -17,6 +17,7 @@ from dexterous_hand.curriculum.callbacks import (
 )
 import dexterous_hand.envs  # noqa: F401  - register gym ids for CPU eval env
 from dexterous_hand.envs.gpu.peg_env import ShadowHandPegMjxEnv
+from dexterous_hand.policies.clamped_actor import make_clamped_actor
 from scripts.training._common import (
     RewardInfoLoggerCallback,
     VecNormSyncEvalCallback,
@@ -89,6 +90,11 @@ def train(config: MjxPegTrainConfig) -> None:
         policy_kwargs={
             "net_arch": dict(pi=config.net_arch.copy(), vf=config.net_arch.copy()),
             "activation_fn": activation_fn,
+            "log_std_init": config.log_std_init,
+            "actor_class": make_clamped_actor(
+                log_std_min=config.log_std_min,
+                log_std_max=config.log_std_max,
+            ),
         },
         verbose=1,
         seed=config.seed,
